@@ -44,6 +44,13 @@ Route::middleware(['auth', 'role:professor'])->prefix('professor')->group(functi
     })->name('professor.dashboard');
 });
 
+// Student Routes
+Route::middleware(['auth', 'role:student'])->prefix('student')->group(function () {
+    Route::get('/dashboard', function () {
+        return view('student.dashboard');
+    })->name('student.dashboard');
+});
+
 // General Dashboard (for all authenticated users)
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', function () {
@@ -56,6 +63,8 @@ Route::middleware('auth')->group(function () {
                 return redirect()->route('hod.dashboard');
             case 'professor':
                 return redirect()->route('professor.dashboard');
+            case 'student':
+                return redirect()->route('student.dashboard');
             default:
                 return view('dashboard');
         }

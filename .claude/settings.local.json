@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(del \"d:\\\\ICT-Sem4\\\\capstone\\\\capstone_project\\\\automated-scheduling-allocation-system-1\\\\resources\\\\views\\\\student\\\\dashboard.blade.php\")"
+    ]
+  }
+}

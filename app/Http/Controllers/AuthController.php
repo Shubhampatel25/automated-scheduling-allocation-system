@@ -40,8 +40,10 @@ class AuthController extends Controller
                     return redirect()->intended('/hod/dashboard');
                 case 'professor':
                     return redirect()->intended('/professor/dashboard');
+                case 'student':
+                    return redirect()->intended('/student/dashboard');
                 default:
-                    return redirect()->intended('/dashboard');  //Need to check ///
+                    return redirect()->intended('/dashboard');
             }
         }
 
