@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Feb 12, 2026 at 08:42 PM
+-- Generation Time: Feb 13, 2026 at 04:36 AM
 -- Server version: 10.4.28-MariaDB
 -- PHP Version: 8.0.28
 
@@ -18,7 +18,7 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- Database: `sample`
+-- Database: `scheduling_system`
 --
 
 -- --------------------------------------------------------
@@ -407,26 +407,26 @@ CREATE TABLE `students` (
 --
 
 INSERT INTO `students` (`id`, `user_id`, `roll_no`, `name`, `email`, `department_id`, `semester`, `status`, `created_at`) VALUES
-(1, 21, 'CS202601', 'Alice Johnson', 'alice.johnson@student.com', 1, 3, 'active', '2026-02-09 05:05:11'),
+(1, 21, 'CS202601', 'Aisha Khan', 'aisha.khan@student.com', 1, 3, 'active', '2026-02-09 05:05:11'),
 (2, 22, 'CS202602', 'Bob Smith', 'bob.smith@student.com', 1, 2, 'active', '2026-02-09 05:05:11'),
-(3, 23, 'ICT202603', 'Charlie Brown', 'charlie.brown@student.com', 2, 4, 'active', '2026-02-09 05:05:11'),
+(3, 23, 'ICT202603', 'Kunal Shah', 'kunal.shah@student.com', 2, 4, 'active', '2026-02-09 05:05:11'),
 (4, 24, 'ECE202604', 'Diana Prince', 'diana.prince@student.com', 3, 1, 'active', '2026-02-09 05:05:11'),
-(5, 25, 'ME202605', 'Ethan Hunt', 'ethan.hunt@student.com', 4, 5, 'active', '2026-02-09 05:05:11'),
-(6, 26, 'CE202606', 'Fiona Gallagher', 'fiona.g@student.com', 5, 2, 'active', '2026-02-09 05:05:11'),
-(7, 27, 'AI202607', 'George Martin', 'george.martin@student.com', 6, 3, 'active', '2026-02-09 05:05:11'),
-(8, 28, 'DS202608', 'Hannah Lee', 'hannah.lee@student.com', 7, 4, 'active', '2026-02-09 05:05:11'),
-(9, 29, 'SE202609', 'Ian Wright', 'ian.wright@student.com', 8, 1, 'active', '2026-02-09 05:05:11'),
-(10, 30, 'EE202610', 'Julia Roberts', 'julia.roberts@student.com', 9, 2, 'active', '2026-02-09 05:05:11'),
-(11, 31, 'PSW202611', 'Kevin Hart', 'kevin.hart@student.com', 10, 1, 'active', '2026-02-09 05:05:11'),
-(12, 32, 'BUS202612', 'Laura Kim', 'laura.kim@student.com', 11, 3, 'active', '2026-02-09 05:05:11'),
-(13, 33, 'FIN202613', 'Michael Scott', 'michael.scott@student.com', 12, 4, 'active', '2026-02-09 05:05:11'),
-(14, 34, 'HR202614', 'Nina Dobrev', 'nina.dobrev@student.com', 13, 2, 'active', '2026-02-09 05:05:11'),
-(15, 35, 'MKT202615', 'Oscar Isaac', 'oscar.isaac@student.com', 14, 1, 'active', '2026-02-09 05:05:11'),
-(16, 36, 'BIO202616', 'Penelope Cruz', 'penelope.cruz@student.com', 15, 3, 'active', '2026-02-09 05:05:11'),
-(17, 37, 'CHE202617', 'Quentin Tarantino', 'quentin.tarantino@student.com', 16, 2, 'active', '2026-02-09 05:05:11'),
-(18, 38, 'PHY202618', 'Rachel Green', 'rachel.green@student.com', 17, 4, 'active', '2026-02-09 05:05:11'),
-(19, 39, 'MAT202619', 'Samuel Jackson', 'samuel.jackson@student.com', 18, 1, 'active', '2026-02-09 05:05:11'),
-(20, 40, 'ENG202620', 'Tina Fey', 'tina.fey@student.com', 19, 3, 'active', '2026-02-09 05:05:11');
+(5, 25, 'ME202605', 'Vikram Malhotra', 'vikram.malhotra@student.com', 4, 5, 'active', '2026-02-09 05:05:11'),
+(6, 26, 'CE202606', 'Ethan Hunt', 'ethan.hunt@student.com', 5, 2, 'active', '2026-02-09 05:05:11'),
+(7, 27, 'AI202607', 'Meera Reddy', 'meera.reddy@student.com', 6, 3, 'active', '2026-02-09 05:05:11'),
+(8, 28, 'DS202608', 'Lucas Garcia', 'lucas.garcia@student.com', 7, 4, 'active', '2026-02-09 05:05:11'),
+(9, 29, 'SE202609', 'Nisha Kapoor', 'nisha.kapoor@student.com', 8, 1, 'active', '2026-02-09 05:05:11'),
+(10, 30, 'EE202610', 'Noah Johnson', 'noah.johnson@student.com', 9, 2, 'active', '2026-02-09 05:05:11'),
+(11, 31, 'PSW202611', 'Sana Ahmed', 'sana.ahmed@student.com', 10, 1, 'active', '2026-02-09 05:05:11'),
+(12, 32, 'BUS202612', 'Henry Martin', 'henry.martin@student.com', 11, 3, 'active', '2026-02-09 05:05:11'),
+(13, 33, 'FIN202613', 'Manav Choudhary', 'manav.choudhary@student.com', 12, 4, 'active', '2026-02-09 05:05:11'),
+(14, 34, 'HR202614', 'Isabella Rodriguez', 'isabella.rodriguez@student.com', 13, 2, 'active', '2026-02-09 05:05:11'),
+(15, 35, 'MKT202615', 'Pooja Bansal', 'pooja.bansal@student.com', 14, 1, 'active', '2026-02-09 05:05:11'),
+(16, 36, 'BIO202616', 'Liam Davis', 'liam.davis@student.com', 15, 3, 'active', '2026-02-09 05:05:11'),
+(17, 37, 'CHE202617', 'Harsh Vardhan', 'harsh.vardhan@student.com', 16, 2, 'active', '2026-02-09 05:05:11'),
+(18, 38, 'PHY202618', 'Amelia Clark', 'amelia.clark@student.com', 17, 4, 'active', '2026-02-09 05:05:11'),
+(19, 39, 'MAT202619', 'Sneha Kulkarni', 'sneha.kulkarni@student.com', 18, 1, 'active', '2026-02-09 05:05:11'),
+(20, 40, 'ENG202620', 'Benjamin White', 'benjamin.white@student.com', 19, 3, 'active', '2026-02-09 05:05:11');
 
 -- --------------------------------------------------------
 
@@ -490,24 +490,24 @@ CREATE TABLE `teachers` (
 --
 
 INSERT INTO `teachers` (`id`, `user_id`, `employee_id`, `name`, `email`, `department_id`, `status`, `created_at`) VALUES
-(1, 3, 'EMP1001', 'Dr. Alice Johnson', 'alice.johnson@college.com', 1, 'active', '2026-02-09 05:23:19'),
-(2, 4, 'EMP1002', 'Dr. Bob Smith', 'bob.smith@college.com', 2, 'active', '2026-02-09 05:23:19'),
-(3, 5, 'EMP1003', 'Dr. Charlie Brown', 'charlie.brown@college.com', 3, 'inactive', '2026-02-09 05:23:19'),
-(4, 6, 'EMP1004', 'Dr. Diana Prince', 'diana.prince@college.com', 4, 'active', '2026-02-09 05:23:19'),
-(5, 7, 'EMP1005', 'Dr. Ethan Hunt', 'ethan.hunt@college.com', 5, 'active', '2026-02-09 05:23:19'),
-(6, 8, 'EMP1006', 'Dr. Fiona Gallagher', 'fiona.g@college.com', 6, 'active', '2026-02-09 05:23:19'),
-(7, 9, 'EMP1007', 'Dr. George Martin', 'george.martin@college.com', 7, 'inactive', '2026-02-09 05:23:19'),
-(8, 10, 'EMP1008', 'Dr. Hannah Lee', 'hannah.lee@college.com', 8, 'active', '2026-02-09 05:23:19'),
-(9, 11, 'EMP1009', 'Dr. Ian Wright', 'ian.wright@college.com', 9, 'on_leave', '2026-02-09 05:23:19'),
-(10, 12, 'EMP1010', 'Dr. Julia Roberts', 'julia.roberts@college.com', 10, 'inactive', '2026-02-09 05:23:19'),
-(11, 13, 'EMP1011', 'Dr. Kevin Hart', 'kevin.hart@college.com', 11, 'active', '2026-02-09 05:23:19'),
-(12, 14, 'EMP1012', 'Dr. Laura Kim', 'laura.kim@college.com', 12, 'active', '2026-02-09 05:23:19'),
-(13, 15, 'EMP1013', 'Dr. Michael Scott', 'michael.scott@college.com', 13, 'inactive', '2026-02-09 05:23:19'),
-(14, 16, 'EMP1014', 'Dr. Nina Dobrev', 'nina.dobrev@college.com', 14, 'active', '2026-02-09 05:23:19'),
-(15, 17, 'EMP1015', 'Dr. Oscar Isaac', 'oscar.isaac@college.com', 15, 'active', '2026-02-09 05:23:19'),
-(16, 18, 'EMP1016', 'Dr. Penelope Cruz', 'penelope.cruz@college.com', 16, 'active', '2026-02-09 05:23:19'),
-(17, 19, 'EMP1017', 'Dr. Quentin Tarantino', 'quentin.tarantino@college.com', 17, 'on_leave', '2026-02-09 05:23:19'),
-(18, 20, 'EMP1018', 'Dr. Rachel Green', 'rachel.green@college.com', 18, 'active', '2026-02-09 05:23:19');
+(1, 3, 'EMP1001', 'Rohan Sharma', 'rohan.sharma@hod.com', 1, 'active', '2026-02-09 05:23:19'),
+(2, 4, 'EMP1002', 'David Miller', 'david.miller@hod.com', 2, 'active', '2026-02-09 05:23:19'),
+(3, 5, 'EMP1003', 'Priya Desai', 'priya.desai@hod.com', 3, 'inactive', '2026-02-09 05:23:19'),
+(4, 6, 'EMP1004', 'Ananya Iyer', 'ananya.iyer@professor.com', 4, 'active', '2026-02-09 05:23:19'),
+(5, 7, 'EMP1005', 'James Wilson', 'james.wilson@professor.com', 5, 'active', '2026-02-09 05:23:19'),
+(6, 8, 'EMP1006', 'Neha Mehta', 'neha.mehta@professor.com', 6, 'active', '2026-02-09 05:23:19'),
+(7, 9, 'EMP1007', 'Daniel Anderson', 'daniel.anderson@professor.com', 7, 'inactive', '2026-02-09 05:23:19'),
+(8, 10, 'EMP1008', 'Kavya Nair', 'kavya.nair@professor.com', 8, 'active', '2026-02-09 05:23:19'),
+(9, 11, 'EMP1009', 'William Jackson', 'william.jackson@professor.com', 9, 'on_leave', '2026-02-09 05:23:19'),
+(10, 12, 'EMP1010', 'Ishita Gupta', 'ishita.gupta@professor.com', 10, 'inactive', '2026-02-09 05:23:19'),
+(11, 13, 'EMP1011', 'Arjun Singh', 'arjun.singh@professor.com', 11, 'active', '2026-02-09 05:23:19'),
+(12, 14, 'EMP1012', 'Sophia Martinez', 'sophia.martinez@professor.com', 12, 'active', '2026-02-09 05:23:19'),
+(13, 15, 'EMP1013', 'Aditya Verma', 'aditya.verma@professor.com', 13, 'inactive', '2026-02-09 05:23:19'),
+(14, 16, 'EMP1014', 'Mia Thompson', 'mia.thompson@professor.com', 14, 'active', '2026-02-09 05:23:19'),
+(15, 17, 'EMP1015', 'Rahul Khanna', 'rahul.khanna@professor.com', 15, 'active', '2026-02-09 05:23:19'),
+(16, 18, 'EMP1016', 'Olivia Brown', 'olivia.brown@professor.com', 16, 'active', '2026-02-09 05:23:19'),
+(17, 19, 'EMP1017', 'Siddharth Joshi', 'siddharth.joshi@professor.com', 17, 'on_leave', '2026-02-09 05:23:19'),
+(18, 20, 'EMP1018', 'Charlotte Taylor', 'charlotte.taylor@professor.com', 18, 'active', '2026-02-09 05:23:19');
 
 -- --------------------------------------------------------
 
@@ -664,46 +664,46 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `username`, `password`, `email`, `role`, `status`, `created_at`, `updated_at`) VALUES
-(1, 'supernova', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'supernova@college.com', 'admin', 'active', '2026-02-09 04:45:56', '2026-02-09 04:45:56'),
-(2, 'nightowl', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'nightowl@college.com', 'admin', 'active', '2026-02-09 04:45:56', '2026-02-09 04:45:56'),
-(3, 'brainboss', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'brainboss@college.com', 'hod', 'active', '2026-02-09 04:45:56', '2026-02-09 04:45:56'),
-(4, 'campusking', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'campusking@college.com', 'hod', 'active', '2026-02-09 04:45:56', '2026-02-09 04:45:56'),
-(5, 'deptqueen', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'deptqueen@college.com', 'hod', 'active', '2026-02-09 04:45:56', '2026-02-09 04:45:56'),
-(6, 'codeguru', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'codeguru@college.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-09 04:45:56'),
-(7, 'logiclord', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'logiclord@college.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-09 04:45:56'),
-(8, 'datasage', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'datasage@college.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-09 04:45:56'),
-(9, 'bytewizard', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'bytewizard@college.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-09 04:45:56'),
-(10, 'techmonk', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'techmonk@college.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-09 04:45:56'),
-(11, 'alphamind', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'alphamind@college.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-09 04:45:56'),
-(12, 'quantfox', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'quantfox@college.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-09 04:45:56'),
-(13, 'neuronix', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'neuronix@college.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-09 04:45:56'),
-(14, 'circuithawk', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'circuithawk@college.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-09 04:45:56'),
-(15, 'cloudzen', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'cloudzen@college.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-09 04:45:56'),
-(16, 'pixelpro', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'pixelpro@college.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-09 04:45:56'),
-(17, 'stackhero', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'stackhero@college.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-09 04:45:56'),
-(18, 'netninja', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'netninja@college.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-09 04:45:56'),
-(19, 'syntaxsky', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'syntaxsky@college.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-09 04:45:56'),
-(20, 'datadrift', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'datadrift@college.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-09 04:45:56'),
-(21, 'CS202601', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'alice.johnson@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-10 03:22:33'),
-(22, 'CS202602', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'bob.smith@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-10 03:22:33'),
-(23, 'ICT202603', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'charlie.brown@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-10 03:22:33'),
-(24, 'ECE202604', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'diana.prince@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-10 03:22:33'),
-(25, 'ME202605', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'ethan.hunt@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-10 03:22:33'),
-(26, 'CE202606', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'fiona.g@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-10 03:22:33'),
-(27, 'AI202607', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'george.martin@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-10 03:22:33'),
-(28, 'DS202608', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'hannah.lee@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-10 03:22:33'),
-(29, 'SE202609', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'ian.wright@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-10 03:22:33'),
-(30, 'EE202610', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'julia.roberts@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-10 03:22:33'),
-(31, 'PSW202611', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'kevin.hart@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-10 03:22:33'),
-(32, 'BUS202612', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'laura.kim@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-10 03:22:33'),
-(33, 'FIN202613', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'michael.scott@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-10 03:22:33'),
-(34, 'HR202614', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'nina.dobrev@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-10 03:22:33'),
-(35, 'MKT202615', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'oscar.isaac@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-10 03:22:33'),
-(36, 'BIO202616', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'penelope.cruz@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-10 03:22:33'),
-(37, 'CHE202617', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'quentin.tarantino@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-10 03:22:33'),
-(38, 'PHY202618', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'rachel.green@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-10 03:22:33'),
-(39, 'MAT202619', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'samuel.jackson@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-10 03:22:33'),
-(40, 'ENG202620', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'tina.fey@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-10 03:22:33');
+(1, 'Aarav Patel', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'aarav.patel@admin.com', 'admin', 'active', '2026-02-09 04:45:56', '2026-02-13 08:20:25'),
+(2, 'Emily Carter', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'emily.carter@admin.com', 'admin', 'active', '2026-02-09 04:45:56', '2026-02-13 08:20:25'),
+(3, 'Rohan Sharma', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'rohan.sharma@hod.com', 'hod', 'active', '2026-02-09 04:45:56', '2026-02-13 08:20:25'),
+(4, 'David Miller', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'david.miller@hod.com', 'hod', 'active', '2026-02-09 04:45:56', '2026-02-13 08:20:25'),
+(5, 'Priya Desai', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'priya.desai@hod.com', 'hod', 'active', '2026-02-09 04:45:56', '2026-02-13 08:20:25'),
+(6, 'Ananya Iyer', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'ananya.iyer@professor.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-13 08:20:25'),
+(7, 'James Wilson', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'james.wilson@professor.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-13 08:20:25'),
+(8, 'Neha Mehta', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'neha.mehta@professor.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-13 08:20:25'),
+(9, 'Daniel Anderson', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'daniel.anderson@professor.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-13 08:20:25'),
+(10, 'Kavya Nair', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'kavya.nair@professor.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-13 08:20:25'),
+(11, 'William Jackson', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'william.jackson@professor.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-13 08:20:25'),
+(12, 'Ishita Gupta', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'ishita.gupta@professor.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-13 08:20:25'),
+(13, 'Arjun Singh', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'arjun.singh@professor.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-13 08:20:25'),
+(14, 'Sophia Martinez', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'sophia.martinez@professor.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-13 08:20:25'),
+(15, 'Aditya Verma', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'aditya.verma@professor.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-13 08:20:25'),
+(16, 'Mia Thompson', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'mia.thompson@professor.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-13 08:20:25'),
+(17, 'Rahul Khanna', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'rahul.khanna@professor.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-13 08:20:25'),
+(18, 'Olivia Brown', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'olivia.brown@professor.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-13 08:20:25'),
+(19, 'Siddharth Joshi', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'siddharth.joshi@professor.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-13 08:20:25'),
+(20, 'Charlotte Taylor', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'charlotte.taylor@professor.com', 'professor', 'active', '2026-02-09 04:45:56', '2026-02-13 08:20:25'),
+(21, 'Aisha Khan', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'aisha.khan@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-13 08:20:25'),
+(22, 'Bob Smith', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'bob.smith@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-13 08:20:25'),
+(23, 'Kunal Shah', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'kunal.shah@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-13 08:20:25'),
+(24, 'Diana Prince', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'diana.prince@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-13 08:20:25'),
+(25, 'Vikram Malhotra', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'vikram.malhotra@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-13 08:20:25'),
+(26, 'Ethan Hunt', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'ethan.hunt@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-13 08:20:25'),
+(27, 'Meera Reddy', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'meera.reddy@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-13 08:20:25'),
+(28, 'Lucas Garcia', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'lucas.garcia@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-13 08:20:25'),
+(29, 'Nisha Kapoor', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'nisha.kapoor@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-13 08:20:25'),
+(30, 'Noah Johnson', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'noah.johnson@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-13 08:20:25'),
+(31, 'Sana Ahmed', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'sana.ahmed@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-13 08:20:25'),
+(32, 'Henry Martin', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'henry.martin@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-13 08:20:25'),
+(33, 'Manav Choudhary', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'manav.choudhary@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-13 08:20:25'),
+(34, 'Isabella Rodriguez', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'isabella.rodriguez@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-13 08:20:25'),
+(35, 'Pooja Bansal', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'pooja.bansal@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-13 08:20:25'),
+(36, 'Liam Davis', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'liam.davis@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-13 08:20:25'),
+(37, 'Harsh Vardhan', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'harsh.vardhan@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-13 08:20:25'),
+(38, 'Amelia Clark', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'amelia.clark@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-13 08:20:25'),
+(39, 'Sneha Kulkarni', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'sneha.kulkarni@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-13 08:20:25'),
+(40, 'Benjamin White', '$2y$10$xlWPGz.xqL9aCUXq4vwLCOzzJufou22jYLZncSz.Wv7nZjet1ReyK', 'benjamin.white@student.com', 'student', 'active', '2026-02-10 03:22:33', '2026-02-13 08:20:25');
 
 --
 -- Indexes for dumped tables
