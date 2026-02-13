@@ -4,8 +4,6 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
-use App\Models\User;
 
 class AuthController extends Controller
 {
@@ -18,37 +16,37 @@ class AuthController extends Controller
     // Handle login
     public function login(Request $request)
     {
+        // Validate
         $request->validate([
-            'email' => 'required|email',
-            'password' => 'required',
+            'email' => ['required', 'email'],
+            'password' => ['required'],
         ]);
 
+        // Credentials
         $credentials = [
             'email' => $request->email,
             'password' => $request->password,
-            'status' => 'active', // Only allow active users
+            'status' => 'active', // only active users
         ];
 
-        if (Auth::attempt($credentials, $request->remember)) {
+        // Attempt login
+        if (Auth::attempt($credentials, $request->boolean('remember'))) {
+
             $request->session()->regenerate();
 
-            // Redirect based on user's role
-            switch (Auth::user()->role) {
-                case 'admin':
-                    return redirect()->intended('/admin/dashboard');
-                case 'hod':
-                    return redirect()->intended('/hod/dashboard');
-                case 'professor':
-                    return redirect()->intended('/professor/dashboard');
-                case 'student':
-                    return redirect()->intended('/student/dashboard');
-                default:
-                    return redirect()->intended('/dashboard');
-            }
+            // Redirect by role
+            return match (Auth::user()->role) {
+                'admin' => redirect()->route('admin.dashboard'),
+                'hod' => redirect()->route('hod.dashboard'),
+                'professor' => redirect()->route('professor.dashboard'),
+                'student' => redirect()->route('student.dashboard'),
+                default => redirect()->route('dashboard'),
+            };
         }
 
+        // Failed login
         return back()->withErrors([
-            'email' => 'The provided credentials do not match our records.',
+            'email' => 'Invalid email or password.',
         ])->onlyInput('email');
     }
 
@@ -60,6 +58,6 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect('/login');
+        return redirect()->route('login');
     }
 }
