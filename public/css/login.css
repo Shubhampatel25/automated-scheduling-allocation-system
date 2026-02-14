@@ -178,6 +178,22 @@ body {
     display: block;
 }
 
+.back-to-login {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.back-to-login a {
+    font-size: 14px;
+    color: #667eea;
+    text-decoration: none;
+    transition: color 0.3s;
+}
+
+.back-to-login a:hover {
+    color: #764ba2;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .login-container {
