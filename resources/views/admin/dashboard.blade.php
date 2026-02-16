@@ -11,36 +11,14 @@
     </a>
 
     <div class="nav-section-title">Management</div>
-    <a href="#" class="nav-link">
-        <span class="icon">&#127979;</span> Departments
-    </a>
-    <a href="#" class="nav-link">
+    <a href="#section-teachers" class="nav-link">
         <span class="icon">&#128100;</span> Teachers
     </a>
-    <a href="#" class="nav-link">
+    <a href="#section-courses" class="nav-link">
         <span class="icon">&#128218;</span> Courses
     </a>
-    <a href="#" class="nav-link">
-        <span class="icon">&#127970;</span> Rooms
-    </a>
-    <a href="#" class="nav-link">
-        <span class="icon">&#128101;</span> Students
-    </a>
-
-    <div class="nav-section-title">Scheduling</div>
-    <a href="#" class="nav-link">
-        <span class="icon">&#128203;</span> View Timetables
-    </a>
-    <a href="#" class="nav-link">
-        <span class="icon">&#9888;</span> Conflicts
-    </a>
-
-    <div class="nav-section-title">System</div>
-    <a href="#" class="nav-link">
+    <a href="#section-activity" class="nav-link">
         <span class="icon">&#128196;</span> Activity Logs
-    </a>
-    <a href="#" class="nav-link">
-        <span class="icon">&#9881;</span> Settings
     </a>
 @endsection
 
@@ -51,7 +29,7 @@
             <h2>Welcome, {{ Auth::user()->username }}!</h2>
             <p>Manage the entire scheduling system from here. Monitor departments, courses, and timetables.</p>
         </div>
-        <a href="#" class="banner-btn">View Timetables</a>
+        <a href="#section-activity" class="banner-btn">View Activity</a>
     </div>
 
     <!-- Stats Grid -->
@@ -102,35 +80,27 @@
 
     <!-- Quick Actions -->
     <div class="quick-actions">
-        <a href="#" class="action-btn">
-            <div class="action-icon">&#127979;</div>
-            Add Department
-        </a>
-        <a href="#" class="action-btn">
+        <a href="#section-teachers" class="action-btn">
             <div class="action-icon">&#128100;</div>
-            Add Teacher
+            View Teachers
         </a>
-        <a href="#" class="action-btn">
+        <a href="#section-courses" class="action-btn">
             <div class="action-icon">&#128218;</div>
-            Add Course
+            View Courses
         </a>
-        <a href="#" class="action-btn">
-            <div class="action-icon">&#127970;</div>
-            Add Room
-        </a>
-        <a href="#" class="action-btn">
-            <div class="action-icon">&#128101;</div>
-            Add Student
+        <a href="#section-activity" class="action-btn">
+            <div class="action-icon">&#128196;</div>
+            View Activity
         </a>
     </div>
 
     <!-- Dashboard Grid -->
     <div class="dashboard-grid">
         <!-- Recent Teachers -->
-        <div class="dashboard-card">
+        <div class="dashboard-card" id="section-teachers">
             <div class="card-header">
                 <h3>Recent Teachers</h3>
-                <span class="badge badge-primary">View All</span>
+                <a href="#section-teachers" class="badge badge-primary">View All</a>
             </div>
             <div class="card-body">
                 @if(isset($recentTeachers) && count($recentTeachers) > 0)
@@ -162,10 +132,10 @@
         </div>
 
         <!-- Recent Courses -->
-        <div class="dashboard-card">
+        <div class="dashboard-card" id="section-courses">
             <div class="card-header">
                 <h3>Recent Courses</h3>
-                <span class="badge badge-success">View All</span>
+                <a href="#section-courses" class="badge badge-success">View All</a>
             </div>
             <div class="card-body">
                 @if(isset($recentCourses) && count($recentCourses) > 0)
@@ -197,10 +167,10 @@
         </div>
 
         <!-- Recent Activity -->
-        <div class="dashboard-card full-width">
+        <div class="dashboard-card full-width" id="section-activity">
             <div class="card-header">
                 <h3>Recent Activity</h3>
-                <span class="badge badge-warning">View All</span>
+                <a href="#section-activity" class="badge badge-warning">View All</a>
             </div>
             <div class="card-body">
                 @if(isset($recentActivities) && count($recentActivities) > 0)

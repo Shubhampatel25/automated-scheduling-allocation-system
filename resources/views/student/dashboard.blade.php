@@ -11,18 +11,18 @@
     </a>
 
     <div class="nav-section-title">Academics</div>
-    <a href="#" class="nav-link">
+    <a href="#section-courses" class="nav-link">
         <span class="icon">&#128218;</span> My Courses
     </a>
-    <a href="#" class="nav-link">
+    <a href="#section-timetable" class="nav-link">
         <span class="icon">&#128197;</span> My Timetable
     </a>
-    <a href="#" class="nav-link">
-        <span class="icon">&#128100;</span> My Teachers
+    <a href="#section-today" class="nav-link">
+        <span class="icon">&#128197;</span> Today's Classes
     </a>
 
     <div class="nav-section-title">Account</div>
-    <a href="#" class="nav-link">
+    <a href="#section-profile" class="nav-link">
         <span class="icon">&#128100;</span> My Profile
     </a>
 @endsection
@@ -34,7 +34,7 @@
             <h2>Welcome, {{ Auth::user()->username }}!</h2>
             <p>View your class schedule, enrolled courses, and academic information.</p>
         </div>
-        <a href="#" class="banner-btn">View Timetable</a>
+        <a href="#section-timetable" class="banner-btn">View Timetable</a>
     </div>
 
     <!-- Stats Grid -->
@@ -72,10 +72,10 @@
     <!-- Dashboard Grid -->
     <div class="dashboard-grid">
         <!-- Enrolled Courses -->
-        <div class="dashboard-card">
+        <div class="dashboard-card" id="section-courses">
             <div class="card-header">
                 <h3>My Courses</h3>
-                <span class="badge badge-primary">{{ $courseCount ?? 0 }} Enrolled</span>
+                <a href="#section-courses" class="badge badge-primary">{{ $courseCount ?? 0 }} Enrolled</a>
             </div>
             <div class="card-body">
                 @if(isset($enrolledCourses) && count($enrolledCourses) > 0)
@@ -93,7 +93,10 @@
                                 <tr>
                                     <td>{{ $course->code ?? 'N/A' }}</td>
                                     <td>{{ $course->name ?? 'N/A' }}</td>
-                                    <td>{{ $course->teacher->name ?? 'TBA' }}</td>
+                                    @php
+                                        $assignment = $course->sections->flatMap(fn($s) => $s->assignments)->first();
+                                    @endphp
+                                    <td>{{ $assignment?->teacher?->name ?? 'TBA' }}</td>
                                     <td>{{ $course->credits ?? 'N/A' }}</td>
                                 </tr>
                             @endforeach
@@ -109,10 +112,10 @@
         </div>
 
         <!-- Today's Schedule -->
-        <div class="dashboard-card">
+        <div class="dashboard-card" id="section-today">
             <div class="card-header">
                 <h3>Today's Classes</h3>
-                <span class="badge badge-success">{{ now()->format('l') }}</span>
+                <a href="#section-today" class="badge badge-success">{{ now()->format('l') }}</a>
             </div>
             <div class="card-body">
                 @if(isset($todaySchedule) && count($todaySchedule) > 0)
@@ -121,8 +124,8 @@
                             <li class="activity-item">
                                 <div class="activity-dot blue"></div>
                                 <div class="activity-content">
-                                    <h4>{{ $slot->course->name ?? 'N/A' }}</h4>
-                                    <p>{{ $slot->time_slot ?? '' }} | Room: {{ $slot->room->name ?? 'TBA' }} | Prof: {{ $slot->teacher->name ?? 'TBA' }}</p>
+                                    <h4>{{ $slot->courseSection->course->name ?? 'N/A' }}</h4>
+                                    <p>{{ substr($slot->start_time, 0, 5) }} - {{ substr($slot->end_time, 0, 5) }} | Room: {{ $slot->room->room_number ?? 'TBA' }} | Prof: {{ $slot->teacher->name ?? 'TBA' }}</p>
                                 </div>
                             </li>
                         @endforeach
@@ -137,10 +140,10 @@
         </div>
 
         <!-- Weekly Timetable -->
-        <div class="dashboard-card full-width">
+        <div class="dashboard-card full-width" id="section-timetable">
             <div class="card-header">
                 <h3>My Weekly Timetable</h3>
-                <span class="badge badge-warning">Full View</span>
+                <a href="#section-timetable" class="badge badge-warning">Full View</a>
             </div>
             <div class="card-body">
                 <div class="timetable-container">
@@ -157,18 +160,19 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach(['09:00 - 10:00', '10:00 - 11:00', '11:00 - 12:00', '12:00 - 01:00', '02:00 - 03:00', '03:00 - 04:00'] as $time)
+                                @foreach(['08:00 - 09:30', '09:30 - 11:00', '11:00 - 12:30', '13:00 - 14:30', '14:30 - 16:00'] as $time)
                                     <tr>
                                         <td class="time-col">{{ $time }}</td>
                                         @foreach(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] as $day)
                                             <td>
                                                 @php
-                                                    $slot = collect($weeklySchedule)->first(fn($s) => ($s->day ?? '') === $day && ($s->time_slot ?? '') === $time);
+                                                    [$startStr] = explode(' - ', $time);
+                                                    $slot = collect($weeklySchedule)->first(fn($s) => ($s->day_of_week ?? '') === $day && substr($s->start_time, 0, 5) === $startStr);
                                                 @endphp
                                                 @if($slot)
                                                     <div class="slot">
-                                                        <div class="course-name">{{ $slot->course->name ?? '' }}</div>
-                                                        <div class="room-name">{{ $slot->room->name ?? '' }}</div>
+                                                        <div class="course-name">{{ $slot->courseSection->course->name ?? '' }}</div>
+                                                        <div class="room-name">{{ $slot->room->room_number ?? '' }}</div>
                                                         <div class="teacher-name">{{ $slot->teacher->name ?? '' }}</div>
                                                     </div>
                                                 @endif
@@ -189,7 +193,7 @@
         </div>
 
         <!-- Student Profile -->
-        <div class="dashboard-card">
+        <div class="dashboard-card" id="section-profile">
             <div class="card-header">
                 <h3>My Profile</h3>
             </div>

@@ -2,6 +2,8 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\TimetableController;
 
 /*
 |--------------------------------------------------------------------------
@@ -33,22 +35,25 @@ Route::post('/logout', [AuthController::class, 'logout'])
 
 // Admin Routes
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
-    Route::get('/dashboard', fn () => view('admin.dashboard'))->name('admin.dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'admin'])->name('admin.dashboard');
 });
 
 // HOD Routes
 Route::middleware(['auth', 'role:hod'])->prefix('hod')->group(function () {
-    Route::get('/dashboard', fn () => view('hod.dashboard'))->name('hod.dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'hod'])->name('hod.dashboard');
+    Route::post('/timetable/generate', [TimetableController::class, 'generate'])->name('hod.timetable.generate');
+    Route::post('/timetable/{timetable}/activate', [TimetableController::class, 'activate'])->name('hod.timetable.activate');
+    Route::post('/timetable/{timetable}/delete', [TimetableController::class, 'destroy'])->name('hod.timetable.delete');
 });
 
 // Professor Routes
 Route::middleware(['auth', 'role:professor'])->prefix('professor')->group(function () {
-    Route::get('/dashboard', fn () => view('professor.dashboard'))->name('professor.dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'professor'])->name('professor.dashboard');
 });
 
 // Student Routes
 Route::middleware(['auth', 'role:student'])->prefix('student')->group(function () {
-    Route::get('/dashboard', fn () => view('student.dashboard'))->name('student.dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'student'])->name('student.dashboard');
 });
 
 // General Dashboard (for all authenticated users)

@@ -11,36 +11,19 @@
     </a>
 
     <div class="nav-section-title">Department</div>
-    <a href="#" class="nav-link">
+    <a href="#section-faculty" class="nav-link">
         <span class="icon">&#128100;</span> Faculty Members
     </a>
-    <a href="#" class="nav-link">
+    <a href="#section-courses" class="nav-link">
         <span class="icon">&#128218;</span> Courses
     </a>
-    <a href="#" class="nav-link">
-        <span class="icon">&#128221;</span> Course Assignments
-    </a>
-
-    <div class="nav-section-title">Scheduling</div>
-    <a href="#" class="nav-link">
-        <span class="icon">&#128197;</span> Generate Timetable
-    </a>
-    <a href="#" class="nav-link">
-        <span class="icon">&#128197;</span> Department Timetable
-    </a>
-    <a href="#" class="nav-link">
-        <span class="icon">&#128203;</span> Approve Schedule
-    </a>
-    <a href="#" class="nav-link">
+    <a href="#section-conflicts" class="nav-link">
         <span class="icon">&#9888;</span> Conflicts
     </a>
 
-    <div class="nav-section-title">Reports</div>
-    <a href="#" class="nav-link">
-        <span class="icon">&#128202;</span> Faculty Workload
-    </a>
-    <a href="#" class="nav-link">
-        <span class="icon">&#128196;</span> Department Report
+    <div class="nav-section-title">Scheduling</div>
+    <a href="#section-timetable" class="nav-link">
+        <span class="icon">&#128197;</span> Department Timetable
     </a>
 @endsection
 
@@ -51,7 +34,7 @@
             <h2>Welcome, {{ Auth::user()->username }}!</h2>
             <p>Manage your department's courses, faculty, and scheduling from this panel.</p>
         </div>
-        <a href="#" class="banner-btn">Generate Timetable</a>
+        <a href="#section-timetable" class="banner-btn">View Timetable</a>
     </div>
 
     <!-- Stats Grid -->
@@ -88,35 +71,31 @@
 
     <!-- Quick Actions -->
     <div class="quick-actions">
-        <a href="#" class="action-btn">
-            <div class="action-icon">&#128221;</div>
-            Assign Course
+        <a href="#section-faculty" class="action-btn">
+            <div class="action-icon">&#128100;</div>
+            View Faculty
         </a>
-        <a href="#" class="action-btn">
-            <div class="action-icon">&#128197;</div>
-            Generate Timetable
+        <a href="#section-courses" class="action-btn">
+            <div class="action-icon">&#128218;</div>
+            View Courses
         </a>
-        <a href="#" class="action-btn">
+        <a href="#section-timetable" class="action-btn">
             <div class="action-icon">&#128197;</div>
             View Timetable
         </a>
-        <a href="#" class="action-btn">
-            <div class="action-icon">&#128202;</div>
-            Faculty Workload
-        </a>
-        <a href="#" class="action-btn">
-            <div class="action-icon">&#128203;</div>
-            Approve Schedule
+        <a href="#section-conflicts" class="action-btn">
+            <div class="action-icon">&#9888;</div>
+            View Conflicts
         </a>
     </div>
 
     <!-- Dashboard Grid -->
     <div class="dashboard-grid">
         <!-- Faculty Members -->
-        <div class="dashboard-card">
+        <div class="dashboard-card" id="section-faculty">
             <div class="card-header">
                 <h3>Faculty Members</h3>
-                <span class="badge badge-primary">View All</span>
+                <a href="#section-faculty" class="badge badge-primary">View All</a>
             </div>
             <div class="card-body">
                 @if(isset($facultyMembers) && count($facultyMembers) > 0)
@@ -148,10 +127,10 @@
         </div>
 
         <!-- Department Courses -->
-        <div class="dashboard-card">
+        <div class="dashboard-card" id="section-courses">
             <div class="card-header">
                 <h3>Department Courses</h3>
-                <span class="badge badge-success">View All</span>
+                <a href="#section-courses" class="badge badge-success">View All</a>
             </div>
             <div class="card-body">
                 @if(isset($departmentCourses) && count($departmentCourses) > 0)
@@ -168,7 +147,10 @@
                                 <tr>
                                     <td>{{ $course->code ?? 'N/A' }}</td>
                                     <td>{{ $course->name ?? 'N/A' }}</td>
-                                    <td>{{ $course->teacher->name ?? 'Unassigned' }}</td>
+                                    @php
+                                        $assignment = $course->sections->flatMap(fn($s) => $s->assignments)->first();
+                                    @endphp
+                                    <td>{{ $assignment?->teacher?->name ?? 'Unassigned' }}</td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -183,10 +165,10 @@
         </div>
 
         <!-- Schedule Conflicts -->
-        <div class="dashboard-card full-width">
+        <div class="dashboard-card full-width" id="section-conflicts">
             <div class="card-header">
                 <h3>Schedule Conflicts</h3>
-                <span class="badge badge-danger">{{ $conflictCount ?? 0 }} Issues</span>
+                <a href="#section-conflicts" class="badge badge-danger">{{ $conflictCount ?? 0 }} Issues</a>
             </div>
             <div class="card-body">
                 @if(isset($conflicts) && count($conflicts) > 0)
@@ -204,13 +186,14 @@
                             @foreach($conflicts as $conflict)
                                 <tr>
                                     <td>
-                                        <span class="badge {{ ($conflict->type ?? '') === 'room' ? 'badge-danger' : (($conflict->type ?? '') === 'teacher' ? 'badge-warning' : 'badge-primary') }}">
-                                            {{ ucfirst($conflict->type ?? 'N/A') }}
+                                        @php $ctype = $conflict->conflict_type ?? ''; @endphp
+                                        <span class="badge {{ str_contains($ctype, 'room') ? 'badge-danger' : (str_contains($ctype, 'teacher') ? 'badge-warning' : 'badge-primary') }}">
+                                            {{ ucfirst(str_replace('_', ' ', $ctype)) }}
                                         </span>
                                     </td>
                                     <td>{{ $conflict->description ?? 'N/A' }}</td>
-                                    <td>{{ $conflict->day ?? 'N/A' }}</td>
-                                    <td>{{ $conflict->time_slot ?? 'N/A' }}</td>
+                                    <td>{{ $conflict->slot1->day_of_week ?? 'N/A' }}</td>
+                                    <td>{{ $conflict->slot1 ? $conflict->slot1->start_time . ' - ' . $conflict->slot1->end_time : 'N/A' }}</td>
                                     <td>
                                         <span class="status {{ ($conflict->status ?? '') === 'resolved' ? 'status-active' : 'status-inactive' }}">
                                             {{ ucfirst($conflict->status ?? 'Unresolved') }}
@@ -230,10 +213,10 @@
         </div>
 
         <!-- Department Timetable Preview -->
-        <div class="dashboard-card full-width">
+        <div class="dashboard-card full-width" id="section-timetable">
             <div class="card-header">
                 <h3>Department Timetable</h3>
-                <span class="badge badge-warning">Full View</span>
+                <a href="#section-timetable" class="badge badge-warning">Full View</a>
             </div>
             <div class="card-body">
                 <div class="timetable-container">
@@ -250,18 +233,19 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach(['09:00 - 10:00', '10:00 - 11:00', '11:00 - 12:00', '12:00 - 01:00', '02:00 - 03:00', '03:00 - 04:00'] as $time)
+                                @foreach(['08:00 - 09:30', '09:30 - 11:00', '11:00 - 12:30', '13:00 - 14:30', '14:30 - 16:00'] as $time)
                                     <tr>
                                         <td class="time-col">{{ $time }}</td>
                                         @foreach(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] as $day)
                                             <td>
                                                 @php
-                                                    $slot = collect($timetableSlots)->first(fn($s) => ($s->day ?? '') === $day && ($s->time_slot ?? '') === $time);
+                                                    [$startStr] = explode(' - ', $time);
+                                                    $slot = collect($timetableSlots)->first(fn($s) => ($s->day_of_week ?? '') === $day && substr($s->start_time, 0, 5) === $startStr);
                                                 @endphp
                                                 @if($slot)
                                                     <div class="slot">
-                                                        <div class="course-name">{{ $slot->course->name ?? '' }}</div>
-                                                        <div class="room-name">{{ $slot->room->name ?? '' }}</div>
+                                                        <div class="course-name">{{ $slot->courseSection->course->name ?? '' }}</div>
+                                                        <div class="room-name">{{ $slot->room->room_number ?? '' }}</div>
                                                         <div class="teacher-name">{{ $slot->teacher->name ?? '' }}</div>
                                                     </div>
                                                 @endif
