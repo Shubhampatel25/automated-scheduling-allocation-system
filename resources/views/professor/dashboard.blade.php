@@ -20,6 +20,22 @@
     <a href="#section-today" class="nav-link">
         <span class="icon">&#128197;</span> Today's Schedule
     </a>
+    <a href="#section-students" class="nav-link">
+        <span class="icon">&#128101;</span> My Students
+    </a>
+
+    <div class="nav-section-title">Availability</div>
+    <a href="#section-availability" class="nav-link">
+        <span class="icon">&#128336;</span> Set Availability
+    </a>
+    <a href="#section-timetable" class="nav-link">
+        <span class="icon">&#128197;</span> View Schedule
+    </a>
+
+    <div class="nav-section-title">Account</div>
+    <a href="#section-profile" class="nav-link">
+        <span class="icon">&#128100;</span> My Profile
+    </a>
 @endsection
 
 @section('content')
@@ -29,7 +45,7 @@
             <h2>Welcome, {{ Auth::user()->username }}!</h2>
             <p>View your teaching schedule, assigned courses, and manage your availability.</p>
         </div>
-        <a href="#section-timetable" class="banner-btn">View Timetable</a>
+        <a href="#section-availability" class="banner-btn">Set Availability</a>
     </div>
 
     <!-- Stats Grid -->
@@ -64,8 +80,33 @@
         </div>
     </div>
 
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+        <a href="#section-courses" class="action-btn">
+            <div class="action-icon">&#128218;</div>
+            My Courses
+        </a>
+        <a href="#section-timetable" class="action-btn">
+            <div class="action-icon">&#128197;</div>
+            View Timetable
+        </a>
+        <a href="#section-availability" class="action-btn">
+            <div class="action-icon">&#128336;</div>
+            Set Availability
+        </a>
+        <a href="#section-students" class="action-btn">
+            <div class="action-icon">&#128101;</div>
+            My Students
+        </a>
+        <a href="#section-profile" class="action-btn">
+            <div class="action-icon">&#128100;</div>
+            My Profile
+        </a>
+    </div>
+
     <!-- Dashboard Grid -->
     <div class="dashboard-grid">
+
         <!-- Assigned Courses -->
         <div class="dashboard-card" id="section-courses">
             <div class="card-header">
@@ -131,6 +172,84 @@
             </div>
         </div>
 
+        <!-- My Students -->
+        <div class="dashboard-card full-width" id="section-students">
+            <div class="card-header">
+                <h3>My Students</h3>
+                <span class="badge badge-primary">{{ $studentCount ?? 0 }} Students</span>
+            </div>
+            <div class="card-body">
+                @if(isset($myStudents) && count($myStudents) > 0)
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Course</th>
+                                <th>Department</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($myStudents as $student)
+                                <tr>
+                                    <td>{{ $student->name ?? 'N/A' }}</td>
+                                    <td>{{ $student->course->name ?? 'N/A' }}</td>
+                                    <td>{{ $student->department->name ?? 'N/A' }}</td>
+                                    <td><span class="status status-active">Active</span></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                @else
+                    <div class="empty-state">
+                        <div class="empty-icon">&#128101;</div>
+                        <p>No students found</p>
+                    </div>
+                @endif
+            </div>
+        </div>
+
+        <!-- Set Availability -->
+        <div class="dashboard-card full-width" id="section-availability">
+            <div class="card-header">
+                <h3>My Availability</h3>
+                <span class="badge badge-success">This Week</span>
+            </div>
+            <div class="card-body">
+                @if(isset($availability) && count($availability) > 0)
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Day</th>
+                                <th>Start Time</th>
+                                <th>End Time</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($availability as $slot)
+                                <tr>
+                                    <td>{{ $slot->day_of_week ?? 'N/A' }}</td>
+                                    <td>{{ $slot->start_time ?? 'N/A' }}</td>
+                                    <td>{{ $slot->end_time ?? 'N/A' }}</td>
+                                    <td>
+                                        <span class="status {{ ($slot->is_available ?? false) ? 'status-active' : 'status-inactive' }}">
+                                            {{ ($slot->is_available ?? false) ? 'Available' : 'Unavailable' }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                @else
+                    <div class="empty-state">
+                        <div class="empty-icon">&#128336;</div>
+                        <p>No availability set yet</p>
+                    </div>
+                @endif
+            </div>
+        </div>
+
         <!-- Weekly Timetable -->
         <div class="dashboard-card full-width" id="section-timetable">
             <div class="card-header">
@@ -182,5 +301,33 @@
                 </div>
             </div>
         </div>
+
+        <!-- My Profile -->
+        <div class="dashboard-card" id="section-profile">
+            <div class="card-header">
+                <h3>My Profile</h3>
+            </div>
+            <div class="card-body">
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Name</div>
+                        <div class="info-value">{{ Auth::user()->username }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Email</div>
+                        <div class="info-value">{{ Auth::user()->email }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Department</div>
+                        <div class="info-value">{{ $department ?? 'N/A' }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Role</div>
+                        <div class="info-value">Professor</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 @endsection

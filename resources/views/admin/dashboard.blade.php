@@ -11,14 +11,36 @@
     </a>
 
     <div class="nav-section-title">Management</div>
+    <a href="#section-departments" class="nav-link">
+        <span class="icon">&#127979;</span> Departments
+    </a>
     <a href="#section-teachers" class="nav-link">
         <span class="icon">&#128100;</span> Teachers
     </a>
     <a href="#section-courses" class="nav-link">
         <span class="icon">&#128218;</span> Courses
     </a>
+    <a href="#section-rooms" class="nav-link">
+        <span class="icon">&#127970;</span> Rooms
+    </a>
+    <a href="#section-students" class="nav-link">
+        <span class="icon">&#128101;</span> Students
+    </a>
+
+    <div class="nav-section-title">Scheduling</div>
+    <a href="#section-timetables" class="nav-link">
+        <span class="icon">&#128203;</span> View Timetables
+    </a>
+    <a href="#section-conflicts" class="nav-link">
+        <span class="icon">&#9888;</span> Conflicts
+    </a>
+
+    <div class="nav-section-title">System</div>
     <a href="#section-activity" class="nav-link">
         <span class="icon">&#128196;</span> Activity Logs
+    </a>
+    <a href="#" class="nav-link">
+        <span class="icon">&#9881;</span> Settings
     </a>
 @endsection
 
@@ -29,7 +51,7 @@
             <h2>Welcome, {{ Auth::user()->username }}!</h2>
             <p>Manage the entire scheduling system from here. Monitor departments, courses, and timetables.</p>
         </div>
-        <a href="#section-activity" class="banner-btn">View Activity</a>
+        <a href="#section-timetables" class="banner-btn">View Timetables</a>
     </div>
 
     <!-- Stats Grid -->
@@ -80,27 +102,36 @@
 
     <!-- Quick Actions -->
     <div class="quick-actions">
+        <a href="#section-departments" class="action-btn">
+            <div class="action-icon">&#127979;</div>
+            Add Department
+        </a>
         <a href="#section-teachers" class="action-btn">
             <div class="action-icon">&#128100;</div>
-            View Teachers
+            Add Teacher
         </a>
         <a href="#section-courses" class="action-btn">
             <div class="action-icon">&#128218;</div>
-            View Courses
+            Add Course
         </a>
-        <a href="#section-activity" class="action-btn">
-            <div class="action-icon">&#128196;</div>
-            View Activity
+        <a href="#section-rooms" class="action-btn">
+            <div class="action-icon">&#127970;</div>
+            Add Room
+        </a>
+        <a href="#section-students" class="action-btn">
+            <div class="action-icon">&#128101;</div>
+            Add Student
         </a>
     </div>
 
     <!-- Dashboard Grid -->
     <div class="dashboard-grid">
+
         <!-- Recent Teachers -->
         <div class="dashboard-card" id="section-teachers">
             <div class="card-header">
                 <h3>Recent Teachers</h3>
-                <a href="#section-teachers" class="badge badge-primary">View All</a>
+                <span class="badge badge-primary">View All</span>
             </div>
             <div class="card-body">
                 @if(isset($recentTeachers) && count($recentTeachers) > 0)
@@ -135,7 +166,7 @@
         <div class="dashboard-card" id="section-courses">
             <div class="card-header">
                 <h3>Recent Courses</h3>
-                <a href="#section-courses" class="badge badge-success">View All</a>
+                <span class="badge badge-success">View All</span>
             </div>
             <div class="card-body">
                 @if(isset($recentCourses) && count($recentCourses) > 0)
@@ -166,11 +197,223 @@
             </div>
         </div>
 
+        <!-- Recent Rooms -->
+        <div class="dashboard-card" id="section-rooms">
+            <div class="card-header">
+                <h3>Recent Rooms</h3>
+                <span class="badge badge-warning">View All</span>
+            </div>
+            <div class="card-body">
+                @if(isset($recentRooms) && count($recentRooms) > 0)
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Room No.</th>
+                                <th>Building</th>
+                                <th>Capacity</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($recentRooms as $room)
+                                <tr>
+                                    <td>{{ $room->room_number ?? 'N/A' }}</td>
+                                    <td>{{ $room->building ?? 'N/A' }}</td>
+                                    <td>{{ $room->capacity ?? 'N/A' }}</td>
+                                    <td>
+                                        <span class="status {{ ($room->status ?? '') === 'active' ? 'status-active' : 'status-inactive' }}">
+                                            {{ ucfirst($room->status ?? 'N/A') }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                @else
+                    <div class="empty-state">
+                        <div class="empty-icon">&#127970;</div>
+                        <p>No rooms added yet</p>
+                    </div>
+                @endif
+            </div>
+        </div>
+
+        <!-- Recent Students -->
+        <div class="dashboard-card" id="section-students">
+            <div class="card-header">
+                <h3>Recent Students</h3>
+                <span class="badge badge-primary">View All</span>
+            </div>
+            <div class="card-body">
+                @if(isset($recentStudents) && count($recentStudents) > 0)
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Department</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($recentStudents as $student)
+                                <tr>
+                                    <td>{{ $student->name ?? 'N/A' }}</td>
+                                    <td>{{ $student->department->name ?? 'N/A' }}</td>
+                                    <td><span class="status status-active">Active</span></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                @else
+                    <div class="empty-state">
+                        <div class="empty-icon">&#128101;</div>
+                        <p>No students added yet</p>
+                    </div>
+                @endif
+            </div>
+        </div>
+
+        <!-- Recent Departments -->
+        <div class="dashboard-card full-width" id="section-departments">
+            <div class="card-header">
+                <h3>Departments</h3>
+                <span class="badge badge-primary">View All</span>
+            </div>
+            <div class="card-body">
+                @if(isset($recentDepartments) && count($recentDepartments) > 0)
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Department Name</th>
+                                <th>HOD</th>
+                                <th>Teachers</th>
+                                <th>Courses</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($recentDepartments as $department)
+                                <tr>
+                                    <td>{{ $department->name ?? 'N/A' }}</td>
+                                    <td>{{ $department->hod->teacher->name ?? 'Not Assigned' }}</td>
+                                    <td>{{ $department->teachers_count ?? 0 }}</td>
+                                    <td>{{ $department->courses_count ?? 0 }}</td>
+                                    <td><span class="status status-active">Active</span></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                @else
+                    <div class="empty-state">
+                        <div class="empty-icon">&#127979;</div>
+                        <p>No departments added yet</p>
+                    </div>
+                @endif
+            </div>
+        </div>
+
+        <!-- View Timetables -->
+        <div class="dashboard-card full-width" id="section-timetables">
+            <div class="card-header">
+                <h3>Generated Timetables</h3>
+                <span class="badge badge-success">View All</span>
+            </div>
+            <div class="card-body">
+                @if(isset($timetables) && count($timetables) > 0)
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Department</th>
+                                <th>Term</th>
+                                <th>Year</th>
+                                <th>Semester</th>
+                                <th>Generated By</th>
+                                <th>Conflicts</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($timetables as $timetable)
+                                <tr>
+                                    <td>{{ $timetable->department->name ?? 'N/A' }}</td>
+                                    <td>{{ $timetable->term ?? 'N/A' }}</td>
+                                    <td>{{ $timetable->year ?? 'N/A' }}</td>
+                                    <td>{{ $timetable->semester ?? 'N/A' }}</td>
+                                    <td>{{ $timetable->generatedByUser->username ?? 'N/A' }}</td>
+                                    <td>{{ $timetable->conflicts_count ?? 0 }}</td>
+                                    <td>
+                                        <span class="status {{ ($timetable->status ?? '') === 'published' ? 'status-published' : 'status-pending' }}">
+                                            {{ ucfirst($timetable->status ?? 'Draft') }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                @else
+                    <div class="empty-state">
+                        <div class="empty-icon">&#128203;</div>
+                        <p>No timetables generated yet</p>
+                    </div>
+                @endif
+            </div>
+        </div>
+
+        <!-- Conflicts -->
+        <div class="dashboard-card full-width" id="section-conflicts">
+            <div class="card-header">
+                <h3>Schedule Conflicts</h3>
+                <span class="badge badge-danger">{{ $conflictCount ?? 0 }} Issues</span>
+            </div>
+            <div class="card-body">
+                @if(isset($conflicts) && count($conflicts) > 0)
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Description</th>
+                                <th>Department</th>
+                                <th>Day</th>
+                                <th>Time Slot</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($conflicts as $conflict)
+                                <tr>
+                                    <td>
+                                        @php $ctype = $conflict->conflict_type ?? ''; @endphp
+                                        <span class="badge {{ str_contains($ctype, 'room') ? 'badge-danger' : (str_contains($ctype, 'teacher') ? 'badge-warning' : 'badge-primary') }}">
+                                            {{ ucfirst(str_replace('_', ' ', $ctype)) }}
+                                        </span>
+                                    </td>
+                                    <td>{{ $conflict->description ?? 'N/A' }}</td>
+                                    <td>{{ $conflict->timetable->department->name ?? 'N/A' }}</td>
+                                    <td>{{ $conflict->slot1->day_of_week ?? 'N/A' }}</td>
+                                    <td>{{ $conflict->slot1 ? $conflict->slot1->start_time . ' - ' . $conflict->slot1->end_time : 'N/A' }}</td>
+                                    <td>
+                                        <span class="status {{ ($conflict->status ?? '') === 'resolved' ? 'status-active' : 'status-inactive' }}">
+                                            {{ ucfirst($conflict->status ?? 'Unresolved') }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                @else
+                    <div class="empty-state">
+                        <div class="empty-icon">&#9888;</div>
+                        <p>No scheduling conflicts found</p>
+                    </div>
+                @endif
+            </div>
+        </div>
+
         <!-- Recent Activity -->
         <div class="dashboard-card full-width" id="section-activity">
             <div class="card-header">
                 <h3>Recent Activity</h3>
-                <a href="#section-activity" class="badge badge-warning">View All</a>
+                <span class="badge badge-warning">View All</span>
             </div>
             <div class="card-body">
                 @if(isset($recentActivities) && count($recentActivities) > 0)
@@ -193,5 +436,6 @@
                 @endif
             </div>
         </div>
+
     </div>
 @endsection

@@ -17,13 +17,30 @@
     <a href="#section-courses" class="nav-link">
         <span class="icon">&#128218;</span> Courses
     </a>
+    <a href="#section-assignments" class="nav-link">
+        <span class="icon">&#128221;</span> Course Assignments
+    </a>
     <a href="#section-conflicts" class="nav-link">
         <span class="icon">&#9888;</span> Conflicts
     </a>
 
     <div class="nav-section-title">Scheduling</div>
+    <a href="#" class="nav-link">
+        <span class="icon">&#128197;</span> Generate Timetable
+    </a>
     <a href="#section-timetable" class="nav-link">
         <span class="icon">&#128197;</span> Department Timetable
+    </a>
+    <a href="#" class="nav-link">
+        <span class="icon">&#128203;</span> Approve Schedule
+    </a>
+
+    <div class="nav-section-title">Reports</div>
+    <a href="#section-workload" class="nav-link">
+        <span class="icon">&#128202;</span> Faculty Workload
+    </a>
+    <a href="#" class="nav-link">
+        <span class="icon">&#128196;</span> Department Report
     </a>
 @endsection
 
@@ -71,26 +88,31 @@
 
     <!-- Quick Actions -->
     <div class="quick-actions">
-        <a href="#section-faculty" class="action-btn">
-            <div class="action-icon">&#128100;</div>
-            View Faculty
+        <a href="#section-assignments" class="action-btn">
+            <div class="action-icon">&#128221;</div>
+            Assign Course
         </a>
-        <a href="#section-courses" class="action-btn">
-            <div class="action-icon">&#128218;</div>
-            View Courses
+        <a href="#" class="action-btn">
+            <div class="action-icon">&#128197;</div>
+            Generate Timetable
         </a>
         <a href="#section-timetable" class="action-btn">
             <div class="action-icon">&#128197;</div>
             View Timetable
         </a>
-        <a href="#section-conflicts" class="action-btn">
-            <div class="action-icon">&#9888;</div>
-            View Conflicts
+        <a href="#section-workload" class="action-btn">
+            <div class="action-icon">&#128202;</div>
+            Faculty Workload
+        </a>
+        <a href="#" class="action-btn">
+            <div class="action-icon">&#128203;</div>
+            Approve Schedule
         </a>
     </div>
 
     <!-- Dashboard Grid -->
     <div class="dashboard-grid">
+
         <!-- Faculty Members -->
         <div class="dashboard-card" id="section-faculty">
             <div class="card-header">
@@ -159,6 +181,84 @@
                     <div class="empty-state">
                         <div class="empty-icon">&#128218;</div>
                         <p>No courses found for this department</p>
+                    </div>
+                @endif
+            </div>
+        </div>
+
+        <!-- Course Assignments -->
+        <div class="dashboard-card full-width" id="section-assignments">
+            <div class="card-header">
+                <h3>Course Assignments</h3>
+                <span class="badge badge-primary">{{ $assignmentCount ?? 0 }} Assigned</span>
+            </div>
+            <div class="card-body">
+                @if(isset($courseAssignments) && count($courseAssignments) > 0)
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Course</th>
+                                <th>Section</th>
+                                <th>Teacher</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($courseAssignments as $assignment)
+                                <tr>
+                                    <td>{{ $assignment->courseSection->course->name ?? 'N/A' }}</td>
+                                    <td>{{ $assignment->courseSection->section_name ?? 'N/A' }}</td>
+                                    <td>{{ $assignment->teacher->name ?? 'N/A' }}</td>
+                                    <td>
+                                        <span class="status status-active">Assigned</span>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                @else
+                    <div class="empty-state">
+                        <div class="empty-icon">&#128221;</div>
+                        <p>No course assignments found</p>
+                    </div>
+                @endif
+            </div>
+        </div>
+
+        <!-- Faculty Workload -->
+        <div class="dashboard-card full-width" id="section-workload">
+            <div class="card-header">
+                <h3>Faculty Workload</h3>
+                <span class="badge badge-warning">This Semester</span>
+            </div>
+            <div class="card-body">
+                @if(isset($facultyWorkload) && count($facultyWorkload) > 0)
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Faculty Name</th>
+                                <th>Courses Assigned</th>
+                                <th>Classes / Week</th>
+                                <th>Hours / Week</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($facultyWorkload as $faculty)
+                                <tr>
+                                    <td>{{ $faculty->name ?? 'N/A' }}</td>
+                                    <td>{{ $faculty->courses_count ?? 0 }}</td>
+                                    <td>{{ $faculty->classes_per_week ?? 0 }}</td>
+                                    <td>{{ $faculty->hours_per_week ?? 0 }}</td>
+                                    <td><span class="status status-active">Active</span></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                @else
+                    <div class="empty-state">
+                        <div class="empty-icon">&#128202;</div>
+                        <p>No workload data available</p>
                     </div>
                 @endif
             </div>
@@ -264,5 +364,6 @@
                 </div>
             </div>
         </div>
+
     </div>
 @endsection

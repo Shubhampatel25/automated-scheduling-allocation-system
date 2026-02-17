@@ -20,6 +20,9 @@
     <a href="#section-today" class="nav-link">
         <span class="icon">&#128197;</span> Today's Classes
     </a>
+    <a href="#section-teachers" class="nav-link">
+        <span class="icon">&#128100;</span> My Teachers
+    </a>
 
     <div class="nav-section-title">Account</div>
     <a href="#section-profile" class="nav-link">
@@ -69,8 +72,33 @@
         </div>
     </div>
 
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+        <a href="#section-courses" class="action-btn">
+            <div class="action-icon">&#128218;</div>
+            My Courses
+        </a>
+        <a href="#section-timetable" class="action-btn">
+            <div class="action-icon">&#128197;</div>
+            View Timetable
+        </a>
+        <a href="#section-today" class="action-btn">
+            <div class="action-icon">&#128197;</div>
+            Today's Classes
+        </a>
+        <a href="#section-teachers" class="action-btn">
+            <div class="action-icon">&#128100;</div>
+            My Teachers
+        </a>
+        <a href="#section-profile" class="action-btn">
+            <div class="action-icon">&#128100;</div>
+            My Profile
+        </a>
+    </div>
+
     <!-- Dashboard Grid -->
     <div class="dashboard-grid">
+
         <!-- Enrolled Courses -->
         <div class="dashboard-card" id="section-courses">
             <div class="card-header">
@@ -134,6 +162,43 @@
                     <div class="empty-state">
                         <div class="empty-icon">&#128197;</div>
                         <p>No classes scheduled for today</p>
+                    </div>
+                @endif
+            </div>
+        </div>
+
+        <!-- My Teachers -->
+        <div class="dashboard-card full-width" id="section-teachers">
+            <div class="card-header">
+                <h3>My Teachers</h3>
+                <span class="badge badge-primary">{{ $teacherCount ?? 0 }} Teachers</span>
+            </div>
+            <div class="card-body">
+                @if(isset($myTeachers) && count($myTeachers) > 0)
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Course</th>
+                                <th>Department</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($myTeachers as $teacher)
+                                <tr>
+                                    <td>{{ $teacher->name ?? 'N/A' }}</td>
+                                    <td>{{ $teacher->course->name ?? 'N/A' }}</td>
+                                    <td>{{ $teacher->department->name ?? 'N/A' }}</td>
+                                    <td><span class="status status-active">Active</span></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                @else
+                    <div class="empty-state">
+                        <div class="empty-icon">&#128100;</div>
+                        <p>No teachers found</p>
                     </div>
                 @endif
             </div>
@@ -218,5 +283,6 @@
                 </div>
             </div>
         </div>
+
     </div>
 @endsection
