@@ -13,6 +13,7 @@ use App\Models\Room;
 use App\Models\Student;
 use App\Models\StudentCourseRegistration;
 use App\Models\Teacher;
+use App\Models\TeacherAvailability;
 use App\Models\Timetable;
 use App\Models\TimetableSlot;
 use Illuminate\Support\Facades\Auth;
@@ -30,14 +31,20 @@ class DashboardController extends Controller
             $studentCount = Student::count();
             $conflictCount = Conflict::where('status', 'unresolved')->count();
 
-            $recentTeachers = Teacher::with('department')->latest('created_at')->take(5)->get();
-            $recentCourses = Course::latest('created_at')->take(5)->get();
-            $recentActivities = ActivityLog::latest('created_at')->take(10)->get();
+            $recentTeachers    = Teacher::with('department')->latest('created_at')->take(5)->get();
+            $recentCourses     = Course::latest('created_at')->take(5)->get();
+            $recentActivities  = ActivityLog::latest('created_at')->take(10)->get();
+            $recentStudents    = Student::with('department')->latest('created_at')->take(5)->get();
+            $recentRooms       = Room::latest('created_at')->take(5)->get();
+            $recentDepartments = Department::with(['hods.teacher'])->withCount(['teachers', 'courses'])->latest('created_at')->take(10)->get();
+            $timetables        = Timetable::with(['department', 'generatedByUser'])->latest('generated_at')->take(10)->get();
+            $conflicts         = Conflict::with(['timetable.department', 'slot1'])->where('status', 'unresolved')->latest('detected_at')->take(10)->get();
 
             return view('admin.dashboard', compact(
                 'departmentCount', 'teacherCount', 'courseCount', 'roomCount',
                 'studentCount', 'conflictCount', 'recentTeachers', 'recentCourses',
-                'recentActivities'
+                'recentActivities', 'recentStudents', 'recentRooms', 'recentDepartments',
+                'timetables', 'conflicts'
             ));
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to load dashboard data. Please try again.');
@@ -91,9 +98,29 @@ class DashboardController extends Controller
                 })->with(['courseSection.course', 'teacher', 'room'])->get()
                 : collect();
 
+            $courseAssignments = $departmentId
+                ? CourseAssignment::whereHas('courseSection.course', function ($q) use ($departmentId) {
+                    $q->where('department_id', $departmentId);
+                })->with(['courseSection.course', 'teacher'])->get()
+                : collect();
+
+            $facultyWorkload = $departmentId
+                ? Teacher::where('department_id', $departmentId)
+                    ->withCount('courseAssignments as courses_count')
+                    ->get()
+                    ->each(function ($teacher) use ($timetableSlots) {
+                        $slots = $timetableSlots->where('teacher_id', $teacher->id);
+                        $teacher->classes_per_week = $slots->count();
+                        $teacher->hours_per_week   = round($slots->sum(function ($s) {
+                            return (strtotime($s->end_time) - strtotime($s->start_time)) / 3600;
+                        }), 1);
+                    })
+                : collect();
+
             return view('hod.dashboard', compact(
                 'facultyCount', 'courseCount', 'assignmentCount', 'conflictCount',
-                'facultyMembers', 'departmentCourses', 'conflicts', 'timetableSlots'
+                'facultyMembers', 'departmentCourses', 'conflicts', 'timetableSlots',
+                'courseAssignments', 'facultyWorkload'
             ));
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to load dashboard data. Please try again.');
@@ -103,10 +130,11 @@ class DashboardController extends Controller
     public function professor()
     {
         try {
-            $user = Auth::user();
-            $teacher = Teacher::where('user_id', $user->id)->first();
+            $user    = Auth::user();
+            $teacher = Teacher::where('user_id', $user->id)->with('department')->first();
             $teacherId = $teacher ? $teacher->id : null;
 
+            // Assigned courses with total enrolled students
             $assignedCourses = $teacherId
                 ? Course::whereHas('sections.assignments', function ($q) use ($teacherId) {
                     $q->where('teacher_id', $teacherId);
@@ -117,6 +145,7 @@ class DashboardController extends Controller
 
             $courseCount = $assignedCourses->count();
 
+            // All timetable slots for this teacher (active timetable only)
             $allSlots = $teacherId
                 ? TimetableSlot::where('teacher_id', $teacherId)
                     ->whereHas('timetable', function ($q) { $q->where('status', 'active'); })
@@ -125,29 +154,117 @@ class DashboardController extends Controller
                 : collect();
 
             $classesPerWeek = $allSlots->count();
-            $hoursPerWeek = $allSlots->sum(function ($slot) {
-                $start = strtotime($slot->start_time);
-                $end = strtotime($slot->end_time);
-                return ($end - $start) / 3600;
-            });
+            $hoursPerWeek   = round($allSlots->sum(function ($slot) {
+                return (strtotime($slot->end_time) - strtotime($slot->start_time)) / 3600;
+            }), 1);
 
+            // Total enrolled students across all assigned sections
             $studentCount = $teacherId
                 ? CourseSection::whereHas('assignments', function ($q) use ($teacherId) {
                     $q->where('teacher_id', $teacherId);
                 })->sum('enrolled_students')
                 : 0;
 
-            $today = now()->format('l');
+            // Section IDs assigned to this teacher
+            $sectionIds = $teacherId
+                ? CourseAssignment::where('teacher_id', $teacherId)->pluck('course_section_id')
+                : collect();
+
+            // Students enrolled in those sections
+            $myStudents = $sectionIds->isNotEmpty()
+                ? Student::whereHas('studentCourseRegistrations', function ($q) use ($sectionIds) {
+                    $q->whereIn('course_section_id', $sectionIds)->where('status', 'enrolled');
+                })->with(['department', 'studentCourseRegistrations' => function ($q) use ($sectionIds) {
+                    $q->whereIn('course_section_id', $sectionIds)->with('courseSection.course');
+                }])->get()
+                : collect();
+
+            // Teacher availability slots ordered by day then time
+            $availability = $teacherId
+                ? TeacherAvailability::where('teacher_id', $teacherId)
+                    ->orderByRaw("FIELD(day_of_week,'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday')")
+                    ->orderBy('start_time')
+                    ->get()
+                : collect();
+
+            $today         = now()->format('l');
             $todaySchedule = $allSlots->where('day_of_week', $today)->sortBy('start_time')->values();
             $weeklySchedule = $allSlots;
 
+            $department = $teacher && $teacher->department ? $teacher->department->name : 'N/A';
+            $employeeId = $teacher ? $teacher->employee_id : 'N/A';
+
             return view('professor.dashboard', compact(
                 'courseCount', 'classesPerWeek', 'studentCount', 'hoursPerWeek',
-                'assignedCourses', 'todaySchedule', 'weeklySchedule'
+                'assignedCourses', 'todaySchedule', 'weeklySchedule',
+                'myStudents', 'availability', 'department', 'employeeId', 'teacher'
             ));
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to load dashboard data. Please try again.');
         }
+    }
+
+    public function schedule(\Illuminate\Http\Request $request)
+    {
+        $departments = Department::orderBy('name')->get();
+        $query = Timetable::with(['department', 'generatedByUser'])
+            ->withCount('timetableSlots as slot_count');
+
+        if ($request->filled('department_id')) {
+            $query->where('department_id', $request->department_id);
+        }
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+        if ($request->filled('year')) {
+            $query->where('year', $request->year);
+        }
+
+        $timetables = $query->latest('generated_at')->paginate(15)->withQueryString();
+
+        return view('admin.schedule.index', compact('timetables', 'departments'));
+    }
+
+    public function conflicts(\Illuminate\Http\Request $request)
+    {
+        $query = Conflict::with(['timetable.department', 'slot1.teacher', 'slot1.room', 'slot1.courseSection.course']);
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+        if ($request->filled('type')) {
+            $query->where('conflict_type', $request->type);
+        }
+        if ($request->filled('search')) {
+            $query->where('description', 'like', '%' . $request->search . '%');
+        }
+
+        $conflicts = $query->latest('detected_at')->paginate(20)->withQueryString();
+        $unresolvedCount = Conflict::where('status', 'unresolved')->count();
+        $resolvedCount   = Conflict::where('status', 'resolved')->count();
+
+        return view('admin.conflicts.index', compact('conflicts', 'unresolvedCount', 'resolvedCount'));
+    }
+
+    public function activity(\Illuminate\Http\Request $request)
+    {
+        $query = ActivityLog::with('user');
+
+        if ($request->filled('search')) {
+            $query->where(function ($q) use ($request) {
+                $q->where('action', 'like', '%' . $request->search . '%')
+                  ->orWhere('entity_type', 'like', '%' . $request->search . '%')
+                  ->orWhere('details', 'like', '%' . $request->search . '%');
+            });
+        }
+        if ($request->filled('entity_type')) {
+            $query->where('entity_type', $request->entity_type);
+        }
+
+        $logs = $query->latest('created_at')->paginate(25)->withQueryString();
+        $entityTypes = ActivityLog::select('entity_type')->distinct()->whereNotNull('entity_type')->pluck('entity_type');
+
+        return view('admin.activity.index', compact('logs', 'entityTypes'));
     }
 
     public function student()
@@ -157,22 +274,31 @@ class DashboardController extends Controller
             $studentRecord = Student::with('department')->where('user_id', $user->id)->first();
             $studentId = $studentRecord ? $studentRecord->id : null;
 
-            $enrolledSectionIds = $studentId
+            $enrolledRegistrations = $studentId
                 ? StudentCourseRegistration::where('student_id', $studentId)
                     ->where('status', 'enrolled')
-                    ->pluck('course_section_id')
+                    ->with(['courseSection.course.department', 'courseSection.assignments.teacher'])
+                    ->get()
                 : collect();
 
-            $enrolledCourses = $enrolledSectionIds->isNotEmpty()
-                ? Course::whereHas('sections', function ($q) use ($enrolledSectionIds) {
-                    $q->whereIn('id', $enrolledSectionIds);
-                })->with(['sections.assignments.teacher'])->get()
-                : collect();
+            $enrolledSectionIds = $enrolledRegistrations->pluck('course_section_id');
 
-            $courseCount = $enrolledCourses->count();
+            // Build enrolled courses with registration ID for drop action
+            $enrolledCourses = $enrolledRegistrations->map(function ($reg) {
+                $section = $reg->courseSection;
+                $course  = $section ? clone $section->course : null;
+                if ($course) {
+                    $course->registrationId = $reg->id;
+                    $course->sectionInfo    = $section;
+                    $assignment = $section->assignments->first();
+                    $course->teacherName = $assignment && $assignment->teacher ? $assignment->teacher->name : 'TBA';
+                }
+                return $course;
+            })->filter()->values();
+
+            $courseCount  = $enrolledCourses->count();
             $totalCredits = $enrolledCourses->sum('credits');
 
-            // Fixed: use DB::raw for proper distinct count
             $teacherCount = $enrolledSectionIds->isNotEmpty()
                 ? CourseAssignment::whereIn('course_section_id', $enrolledSectionIds)
                     ->distinct()->count('teacher_id')
@@ -186,10 +312,15 @@ class DashboardController extends Controller
                 : collect();
 
             $classesPerWeek = $allSlots->count();
-
-            $today = now()->format('l');
-            $todaySchedule = $allSlots->where('day_of_week', $today)->sortBy('start_time')->values();
+            $today          = now()->format('l');
+            $todaySchedule  = $allSlots->where('day_of_week', $today)->sortBy('start_time')->values();
             $weeklySchedule = $allSlots;
+
+            // Available sections: not enrolled, has capacity
+            $availableSections = CourseSection::whereNotIn('id', $enrolledSectionIds->toArray())
+                ->whereColumn('enrolled_students', '<', 'max_students')
+                ->with(['course.department', 'assignments.teacher'])
+                ->get();
 
             $department = $studentRecord && $studentRecord->department
                 ? $studentRecord->department->name
@@ -199,7 +330,7 @@ class DashboardController extends Controller
             return view('student.dashboard', compact(
                 'courseCount', 'classesPerWeek', 'teacherCount', 'totalCredits',
                 'enrolledCourses', 'todaySchedule', 'weeklySchedule',
-                'department', 'semester'
+                'availableSections', 'department', 'semester'
             ));
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to load dashboard data. Please try again.');
