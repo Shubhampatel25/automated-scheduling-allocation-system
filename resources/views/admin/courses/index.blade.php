@@ -46,6 +46,8 @@
                     <th>Code</th>
                     <th>Course Name</th>
                     <th>Department</th>
+                    <th>Semester</th>
+                    <th>Fee</th>
                     <th>Credit</th>
                     <th>Type</th>
                     <th>Status</th>
@@ -58,6 +60,8 @@
                     <td>{{ $course->code }}</td>
                     <td>{{ $course->name }}</td>
                     <td>{{ $course->department->name ?? 'N/A' }}</td>
+                    <td>{{ $course->semester ? 'Sem ' . $course->semester : 'All' }}</td>
+                    <td>${{ number_format($course->fee ?? 0, 2) }}</td>
                     <td>{{ $course->credits }}</td>
                     <td>
                         <span class="type-badge type-{{ $course->type }}">
@@ -70,7 +74,7 @@
                         </span>
                     </td>
                     <td>
-                        <button class="link-edit" onclick="editCourse({{ $course->id }}, '{{ $course->code }}', '{{ addslashes($course->name) }}', '{{ $course->department_id }}', '{{ $course->credits }}', '{{ $course->type }}', '{{ $course->status }}')">Edit</button>
+                        <button class="link-edit" onclick="editCourse({{ $course->id }}, '{{ $course->code }}', '{{ addslashes($course->name) }}', '{{ $course->department_id }}', '{{ $course->semester }}', '{{ $course->fee ?? 0 }}', '{{ $course->credits }}', '{{ $course->type }}', '{{ $course->status }}')">Edit</button>
                         <span class="sep"> | </span>
                         <form method="POST" action="{{ route('admin.courses.destroy', $course->id) }}" style="display:inline" onsubmit="return confirm('Delete this course?')">
                             @csrf @method('DELETE')
@@ -79,7 +83,7 @@
                     </td>
                 </tr>
                 @empty
-                <tr><td colspan="7" style="text-align:center;padding:24px;color:#9ca3af">No courses found.</td></tr>
+                <tr><td colspan="9" style="text-align:center;padding:24px;color:#9ca3af">No courses found.</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -125,6 +129,19 @@
                 </select>
             </div>
             <div class="field-group">
+                <label>Semester</label>
+                <select name="semester" id="fSemester">
+                    <option value="">All Semesters (Elective)</option>
+                    @for($i = 1; $i <= 8; $i++)
+                        <option value="{{ $i }}" {{ old('semester') == $i ? 'selected' : '' }}>Semester {{ $i }}</option>
+                    @endfor
+                </select>
+            </div>
+            <div class="field-group">
+                <label>Course Fee ($)</label>
+                <input type="number" name="fee" id="fFee" value="{{ old('fee', 0) }}" step="0.01" min="0" placeholder="e.g. 500.00">
+            </div>
+            <div class="field-group">
                 <label>Credit Hours</label>
                 <select name="credits" id="fCredits" required>
                     <option value="">Select Credits</option>
@@ -137,9 +154,9 @@
                 <label>Course Type</label>
                 <select name="type" id="fType" required>
                     <option value="">Select Type</option>
-                    <option value="theory"  {{ old('type') === 'theory'  ? 'selected' : '' }}>Theory</option>
-                    <option value="lab"     {{ old('type') === 'lab'     ? 'selected' : '' }}>Lab</option>
-                    <option value="hybrid"  {{ old('type') === 'hybrid'  ? 'selected' : '' }}>Lecture + Lab</option>
+                    <option value="lecture"     {{ old('type') === 'lecture'     ? 'selected' : '' }}>Lecture</option>
+                    <option value="lab"         {{ old('type') === 'lab'         ? 'selected' : '' }}>Lab</option>
+                    <option value="lecture_lab" {{ old('type') === 'lecture_lab' ? 'selected' : '' }}>Lecture + Lab</option>
                 </select>
             </div>
             <div class="field-group">
@@ -170,12 +187,14 @@ function closeModal() {
     document.getElementById('modalBackdrop').classList.remove('show');
 }
 
-function editCourse(id, code, name, deptId, credits, type, status) {
+function editCourse(id, code, name, deptId, semester, fee, credits, type, status) {
     document.getElementById('courseForm').action = `/admin/courses/${id}`;
     document.getElementById('formMethod').value  = 'PUT';
     document.getElementById('fCode').value       = code;
     document.getElementById('fName').value       = name;
     document.getElementById('fDept').value       = deptId;
+    document.getElementById('fSemester').value   = semester || '';
+    document.getElementById('fFee').value        = fee || 0;
     document.getElementById('fCredits').value    = credits;
     document.getElementById('fType').value       = type;
     document.getElementById('fStatus').value     = status;
@@ -193,7 +212,14 @@ document.getElementById('modalBackdrop').addEventListener('click', function(e) {
 
 @if($errors->any())
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('modalBackdrop').classList.add('show');
+    @php
+        $editingCourse = old('code') ? App\Models\Course::where('code', old('code'))->first() : null;
+    @endphp
+    @if($editingCourse)
+        editCourse({{ $editingCourse->id }}, '{{ $editingCourse->code }}', '{{ addslashes($editingCourse->name) }}', '{{ $editingCourse->department_id }}', '{{ $editingCourse->semester }}', '{{ $editingCourse->credits }}', '{{ $editingCourse->type }}', '{{ $editingCourse->status }}');
+    @else
+        document.getElementById('modalBackdrop').classList.add('show');
+    @endif
 });
 @elseif(request('add') == '1')
 document.addEventListener('DOMContentLoaded', () => openModal());

@@ -46,4 +46,9 @@ class Student extends Model
         return $this->belongsToMany(CourseSection::class, 'student_course_registrations')
                     ->withPivot('status', 'registered_at');
     }
+
+    public function feePayments()
+    {
+        return $this->hasMany(FeePayment::class);
+    }
 }

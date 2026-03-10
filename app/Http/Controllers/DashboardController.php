@@ -8,6 +8,7 @@ use App\Models\Course;
 use App\Models\CourseAssignment;
 use App\Models\CourseSection;
 use App\Models\Department;
+use App\Models\FeePayment;
 use App\Models\Hod;
 use App\Models\Room;
 use App\Models\Student;
@@ -274,30 +275,37 @@ class DashboardController extends Controller
             $studentRecord = Student::with('department')->where('user_id', $user->id)->first();
             $studentId = $studentRecord ? $studentRecord->id : null;
 
-            $enrolledRegistrations = $studentId
+            // Enrolled-only IDs used to filter available sections
+            $enrolledSectionIds = $studentId
                 ? StudentCourseRegistration::where('student_id', $studentId)
                     ->where('status', 'enrolled')
+                    ->pluck('course_section_id')
+                : collect();
+
+            // All registrations (enrolled + completed) for My Courses display
+            $enrolledRegistrations = $studentId
+                ? StudentCourseRegistration::where('student_id', $studentId)
+                    ->whereIn('status', ['enrolled', 'completed'])
                     ->with(['courseSection.course.department', 'courseSection.assignments.teacher'])
                     ->get()
                 : collect();
 
-            $enrolledSectionIds = $enrolledRegistrations->pluck('course_section_id');
-
-            // Build enrolled courses with registration ID for drop action
+            // Build courses list with registration status for badge/drop logic
             $enrolledCourses = $enrolledRegistrations->map(function ($reg) {
                 $section = $reg->courseSection;
                 $course  = $section ? clone $section->course : null;
                 if ($course) {
-                    $course->registrationId = $reg->id;
-                    $course->sectionInfo    = $section;
+                    $course->registrationId     = $reg->id;
+                    $course->registrationStatus = $reg->status;
+                    $course->sectionInfo        = $section;
                     $assignment = $section->assignments->first();
                     $course->teacherName = $assignment && $assignment->teacher ? $assignment->teacher->name : 'TBA';
                 }
                 return $course;
             })->filter()->values();
 
-            $courseCount  = $enrolledCourses->count();
-            $totalCredits = $enrolledCourses->sum('credits');
+            $courseCount  = $enrolledCourses->where('registrationStatus', 'enrolled')->count();
+            $totalCredits = $enrolledCourses->where('registrationStatus', 'enrolled')->sum('credits');
 
             $teacherCount = $enrolledSectionIds->isNotEmpty()
                 ? CourseAssignment::whereIn('course_section_id', $enrolledSectionIds)
@@ -316,11 +324,50 @@ class DashboardController extends Controller
             $todaySchedule  = $allSlots->where('day_of_week', $today)->sortBy('start_time')->values();
             $weeklySchedule = $allSlots;
 
-            // Available sections: not enrolled, has capacity
-            $availableSections = CourseSection::whereNotIn('id', $enrolledSectionIds->toArray())
-                ->whereColumn('enrolled_students', '<', 'max_students')
-                ->with(['course.department', 'assignments.teacher'])
-                ->get();
+            // Check fee payment status for current semester
+            $currentYear = now()->year;
+            $feeRecord   = null;
+            $feePaid     = false;
+            if ($studentRecord) {
+                $feeRecord = FeePayment::where('student_id', $studentRecord->id)
+                    ->where('semester', $studentRecord->semester)
+                    ->where('year', $currentYear)
+                    ->first();
+
+                // Auto-sync fee amount from enrolled courses if record exists and is not yet paid
+                if ($feeRecord && $feeRecord->status !== 'paid') {
+                    $calculatedTotal = $enrolledCourses
+                        ->where('registrationStatus', 'enrolled')
+                        ->sum(fn($c) => (float) ($c->fee ?? 0));
+                    if ((float) $feeRecord->amount !== $calculatedTotal) {
+                        DB::table('fee_payments')
+                            ->where('id', $feeRecord->id)
+                            ->update(['amount' => $calculatedTotal]);
+                        $feeRecord->amount = $calculatedTotal;
+                    }
+                }
+
+                $feePaid = $feeRecord && $feeRecord->status === 'paid';
+            }
+
+            // Available sections: only from student's department + semester, not enrolled, has capacity
+            $availableSections = collect();
+            if ($studentRecord && $feePaid) {
+                $studentDeptId = $studentRecord->department_id;
+                $studentSemester = $studentRecord->semester;
+
+                $availableSections = CourseSection::whereNotIn('id', $enrolledSectionIds->toArray())
+                    ->whereColumn('enrolled_students', '<', 'max_students')
+                    ->whereHas('course', function ($q) use ($studentDeptId, $studentSemester) {
+                        $q->where('department_id', $studentDeptId)
+                          ->where(function ($q2) use ($studentSemester) {
+                              $q2->where('semester', $studentSemester)
+                                 ->orWhereNull('semester');
+                          });
+                    })
+                    ->with(['course.department', 'assignments.teacher'])
+                    ->get();
+            }
 
             $department = $studentRecord && $studentRecord->department
                 ? $studentRecord->department->name
@@ -330,7 +377,7 @@ class DashboardController extends Controller
             return view('student.dashboard', compact(
                 'courseCount', 'classesPerWeek', 'teacherCount', 'totalCredits',
                 'enrolledCourses', 'todaySchedule', 'weeklySchedule',
-                'availableSections', 'department', 'semester'
+                'availableSections', 'department', 'semester', 'feePaid', 'feeRecord'
             ));
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to load dashboard data. Please try again.');

@@ -13,6 +13,7 @@ use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\TeacherAvailabilityController;
 use App\Http\Controllers\ProfessorController;
 use App\Http\Controllers\StudentCourseRegistrationController;
+use App\Http\Controllers\FeePaymentController;
 
 /*
 |--------------------------------------------------------------------------
@@ -82,6 +83,17 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::put('/departments/{department}',     [DepartmentController::class, 'update'])->name('admin.departments.update');
     Route::delete('/departments/{department}',  [DepartmentController::class, 'destroy'])->name('admin.departments.destroy');
 
+    // Fee Payments
+    Route::get('/fee-payments',                          [FeePaymentController::class, 'index'])->name('admin.fee-payments.index');
+    Route::post('/fee-payments',                         [FeePaymentController::class, 'store'])->name('admin.fee-payments.store');
+    Route::put('/fee-payments/{feePayment}',             [FeePaymentController::class, 'update'])->name('admin.fee-payments.update');
+    Route::delete('/fee-payments/{feePayment}',          [FeePaymentController::class, 'destroy'])->name('admin.fee-payments.destroy');
+    Route::post('/fee-payments/generate-pending',        [FeePaymentController::class, 'generatePending'])->name('admin.fee-payments.generate');
+    Route::get('/fee-payments/student-fee/{student}',   [FeePaymentController::class, 'getStudentFee'])->name('admin.fee-payments.student-fee');
+
+    // Course Registrations
+    Route::post('/registrations/{registration}/complete', [StudentCourseRegistrationController::class, 'complete'])->name('admin.registrations.complete');
+
     // Scheduling & System pages
     Route::get('/schedule',  [DashboardController::class, 'schedule'])->name('admin.schedule');
     Route::get('/conflicts', [DashboardController::class, 'conflicts'])->name('admin.conflicts');
@@ -114,6 +126,7 @@ Route::middleware(['auth', 'role:student'])->prefix('student')->group(function (
     Route::get('/dashboard', [DashboardController::class, 'student'])->name('student.dashboard');
     Route::post('/courses/register', [StudentCourseRegistrationController::class, 'register'])->name('student.courses.register');
     Route::post('/courses/{registration}/drop', [StudentCourseRegistrationController::class, 'drop'])->name('student.courses.drop');
+    Route::post('/fees/{feePayment}/pay', [FeePaymentController::class, 'studentPay'])->name('student.fees.pay');
 });
 
 // General Dashboard (for all authenticated users)

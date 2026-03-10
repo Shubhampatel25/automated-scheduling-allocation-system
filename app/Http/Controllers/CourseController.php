@@ -33,19 +33,34 @@ class CourseController extends Controller
             'code'          => 'required|string|max:20|unique:courses,code',
             'name'          => 'required|string|max:255',
             'department_id' => 'required|exists:departments,id',
+            'semester'      => 'nullable|integer|between:1,8',
+            'fee'           => 'nullable|numeric|min:0',
             'credits'       => 'required|integer|between:1,6',
-            'type'          => 'required|in:theory,lab,hybrid',
+            'type'          => 'required|in:lecture,lab,lecture_lab',
             'status'        => 'required|in:active,inactive',
         ]);
 
-        Course::create([
+        $course = Course::create([
             'code'          => strtoupper($request->code),
             'name'          => $request->name,
             'department_id' => $request->department_id,
+            'semester'      => $request->semester,
+            'fee'           => $request->fee ?? 0,
             'credits'       => $request->credits,
             'type'          => $request->type,
             'status'        => $request->status,
             'created_at'    => now(),
+        ]);
+
+        // Auto-create a default section so the course appears in student registration
+        CourseSection::create([
+            'course_id'        => $course->id,
+            'section_number'   => 1,
+            'term'             => now()->month <= 4 ? 'Winter' : (now()->month <= 8 ? 'Summer' : 'Fall'),
+            'year'             => now()->year,
+            'max_students'     => 30,
+            'enrolled_students'=> 0,
+            'created_at'       => now(),
         ]);
 
         return redirect()->route('admin.courses.index')
@@ -58,8 +73,10 @@ class CourseController extends Controller
             'code'          => 'required|string|max:20|unique:courses,code,' . $course->id,
             'name'          => 'required|string|max:255',
             'department_id' => 'required|exists:departments,id',
+            'semester'      => 'nullable|integer|between:1,8',
+            'fee'           => 'nullable|numeric|min:0',
             'credits'       => 'required|integer|between:1,6',
-            'type'          => 'required|in:theory,lab,hybrid',
+            'type'          => 'required|in:lecture,lab,lecture_lab',
             'status'        => 'required|in:active,inactive',
         ]);
 
@@ -67,6 +84,8 @@ class CourseController extends Controller
             'code'          => strtoupper($request->code),
             'name'          => $request->name,
             'department_id' => $request->department_id,
+            'semester'      => $request->semester,
+            'fee'           => $request->fee ?? 0,
             'credits'       => $request->credits,
             'type'          => $request->type,
             'status'        => $request->status,

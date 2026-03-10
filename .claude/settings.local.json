@@ -4,7 +4,11 @@
       "Bash(del \"d:\\\\ICT-Sem4\\\\capstone\\\\capstone_project\\\\automated-scheduling-allocation-system-1\\\\resources\\\\views\\\\student\\\\dashboard.blade.php\")",
       "Bash(php artisan:*)",
       "Bash(php -l app/Http/Controllers/DashboardController.php)",
-      "Bash(php -l app/Http/Controllers/StudentController.php)"
+      "Bash(php -l app/Http/Controllers/StudentController.php)",
+      "Bash(php -l app/Http/Controllers/FeePaymentController.php)",
+      "Bash(php -l app/Http/Controllers/StudentCourseRegistrationController.php)",
+      "Bash(php -l app/Http/Controllers/CourseController.php)",
+      "Bash(php -l routes/web.php)"
     ]
   }
 }

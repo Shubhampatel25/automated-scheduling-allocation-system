@@ -15,7 +15,10 @@ class StudentController extends Controller
     public function index(Request $request)
     {
         $search   = $request->get('search');
-        $students = Student::with(['department', 'studentCourseRegistrations.courseSection.course'])
+        $students = Student::with(['department', 'studentCourseRegistrations' => function ($q) {
+                $q->whereIn('status', ['enrolled', 'completed'])
+                  ->with('courseSection.course');
+            }])
             ->withCount(['studentCourseRegistrations as enrolled_count' => function ($q) {
                 $q->where('status', 'enrolled');
             }])

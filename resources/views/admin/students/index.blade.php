@@ -13,6 +13,11 @@
 @endpush
 
 @section('content')
+@if(session('success'))
+<div style="background:#d1fae5;color:#065f46;padding:12px 18px;border-radius:8px;margin-bottom:16px;font-size:0.9rem;border:1px solid #a7f3d0;">
+    &#10003; {{ session('success') }}
+</div>
+@endif
 <div class="manage-header">
     <div class="manage-title">
         <h2>Student</h2>
@@ -54,7 +59,8 @@
             <tbody>
                 @forelse($students as $student)
                 @php
-                    $enrolledRegs = $student->studentCourseRegistrations->where('status', 'enrolled');
+                    $activeRegs   = $student->studentCourseRegistrations->whereIn('status', ['enrolled', 'completed']);
+                    $enrolledRegs = $activeRegs->where('status', 'enrolled');
                 @endphp
                 <tr>
                     <td>{{ $student->roll_no }}</td>
@@ -62,10 +68,13 @@
                     <td>{{ $student->department->name ?? 'N/A' }}</td>
                     <td>{{ $student->semester }}</td>
                     <td>
-                        @if($enrolledRegs->count() > 0)
+                        @if($activeRegs->count() > 0)
                             <button class="link-edit" style="color:#4f46e5;font-weight:500"
-                                onclick="viewCourses({{ $student->id }}, '{{ addslashes($student->name) }}', {{ $enrolledRegs->toJson() }})">
-                                {{ $enrolledRegs->count() }} course{{ $enrolledRegs->count() != 1 ? 's' : '' }}
+                                onclick="viewCourses('{{ addslashes($student->name) }}', {{ $activeRegs->values()->toJson() }})">
+                                {{ $enrolledRegs->count() }} enrolled
+                                @if($activeRegs->where('status','completed')->count() > 0)
+                                    &bull; {{ $activeRegs->where('status','completed')->count() }} completed
+                                @endif
                             </button>
                         @else
                             <span style="color:#9ca3af">None</span>
@@ -91,19 +100,22 @@
 
 <!-- Courses Detail Modal -->
 <div class="modal-backdrop" id="coursesModalBackdrop">
-    <div class="modal-card" style="max-width:680px">
+    <div class="modal-card" style="max-width:780px">
         <div class="modal-top">
-            <h3 id="coursesModalTitle">Enrolled Courses</h3>
+            <h3 id="coursesModalTitle">Student Courses</h3>
             <button class="modal-close-btn" onclick="closeCoursesModal()">&times;</button>
         </div>
+        <div id="coursesSuccessMsg" style="display:none;background:#d1fae5;color:#065f46;padding:10px 16px;font-size:0.875rem;border-bottom:1px solid #a7f3d0;"></div>
         <div class="card-body" id="coursesModalBody" style="padding:0">
             <table class="data-table" style="margin:0">
                 <thead>
                     <tr>
-                        <th>Course Code</th>
+                        <th>Code</th>
                         <th>Course Name</th>
                         <th>Section</th>
                         <th>Registered At</th>
+                        <th>Status</th>
+                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody id="coursesModalRows"></tbody>
@@ -166,7 +178,9 @@
 
 @push('scripts')
 <script>
-const storeUrl = "{{ route('admin.students.store') }}";
+const storeUrl        = "{{ route('admin.students.store') }}";
+const completeBaseUrl = "{{ url('admin/registrations') }}";
+const csrfToken       = "{{ csrf_token() }}";
 
 function openModal() {
     document.getElementById('studentForm').action = storeUrl;
@@ -202,19 +216,39 @@ document.getElementById('coursesModalBackdrop').addEventListener('click', functi
     if (e.target === this) closeCoursesModal();
 });
 
-function viewCourses(id, name, regs) {
-    document.getElementById('coursesModalTitle').textContent = name + ' — Enrolled Courses';
+function viewCourses(name, regs) {
+    document.getElementById('coursesModalTitle').textContent = name + ' — Courses';
+    document.getElementById('coursesSuccessMsg').style.display = 'none';
     const tbody = document.getElementById('coursesModalRows');
     tbody.innerHTML = '';
     regs.forEach(reg => {
-        const section = reg.course_section || {};
-        const course  = section.course || {};
-        const regDate = reg.registered_at ? reg.registered_at.slice(0, 10) : 'N/A';
+        const section   = reg.course_section || {};
+        const course    = section.course || {};
+        const regDate   = reg.registered_at ? reg.registered_at.slice(0, 10) : 'N/A';
+        const status    = reg.status || 'enrolled';
+        const isEnrolled = status === 'enrolled';
+
+        const statusBadge = isEnrolled
+            ? `<span style="background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;">Enrolled</span>`
+            : `<span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;">&#10003; Completed</span>`;
+
+        const actionBtn = isEnrolled
+            ? `<form method="POST" action="${completeBaseUrl}/${reg.id}/complete" style="display:inline"
+                    onsubmit="return confirm('Mark this course as completed for ${name.replace(/'/g,"\\'")}?')">
+                    <input type="hidden" name="_token" value="${csrfToken}">
+                    <button type="submit" style="background:#16a34a;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:0.78rem;">
+                        Mark Complete
+                    </button>
+               </form>`
+            : `<span style="color:#9ca3af;font-size:0.8rem;">—</span>`;
+
         tbody.innerHTML += `<tr>
-            <td>${course.code || 'N/A'}</td>
+            <td><strong>${course.code || 'N/A'}</strong></td>
             <td>${course.name || 'N/A'}</td>
             <td>Sec ${section.section_number || '?'} &bull; ${section.term || ''} ${section.year || ''}</td>
             <td>${regDate}</td>
+            <td>${statusBadge}</td>
+            <td>${actionBtn}</td>
         </tr>`;
     });
     document.getElementById('coursesModalBackdrop').classList.add('show');

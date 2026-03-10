@@ -22,6 +22,9 @@
 <a href="{{ route('admin.rooms.index') }}" class="nav-link {{ request()->routeIs('admin.rooms.*') ? 'active' : '' }}">
     <span class="icon">&#127970;</span> Manage Rooms
 </a>
+<a href="{{ route('admin.fee-payments.index') }}" class="nav-link {{ request()->routeIs('admin.fee-payments.*') ? 'active' : '' }}">
+    <span class="icon">&#128176;</span> Fee Payments
+</a>
 
 <div class="nav-section-title">Scheduling</div>
 <a href="{{ route('admin.schedule') }}" class="nav-link {{ request()->routeIs('admin.schedule') ? 'active' : '' }}">
