@@ -10,6 +10,25 @@
 
 @push('styles')
 <link rel="stylesheet" href="{{ asset('css/manage.css') }}">
+<style>
+.modal-sem-tab {
+    padding: 8px 16px;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #6b7280;
+    margin-bottom: -2px;
+    white-space: nowrap;
+}
+.modal-sem-tab.modal-sem-active {
+    color: #4f46e5;
+    border-bottom-color: #4f46e5;
+    font-weight: 600;
+}
+</style>
 @endpush
 
 @section('content')
@@ -100,18 +119,23 @@
 
 <!-- Courses Detail Modal -->
 <div class="modal-backdrop" id="coursesModalBackdrop">
-    <div class="modal-card" style="max-width:780px">
+    <div class="modal-card" style="max-width:820px">
         <div class="modal-top">
             <h3 id="coursesModalTitle">Student Courses</h3>
             <button class="modal-close-btn" onclick="closeCoursesModal()">&times;</button>
         </div>
         <div id="coursesSuccessMsg" style="display:none;background:#d1fae5;color:#065f46;padding:10px 16px;font-size:0.875rem;border-bottom:1px solid #a7f3d0;"></div>
+
+        {{-- Semester filter tabs --}}
+        <div id="coursesFilterTabs" style="display:flex;gap:0;border-bottom:2px solid #e5e7eb;padding:0 16px;background:#fff;flex-wrap:wrap;"></div>
+
         <div class="card-body" id="coursesModalBody" style="padding:0">
             <table class="data-table" style="margin:0">
                 <thead>
                     <tr>
                         <th>Code</th>
                         <th>Course Name</th>
+                        <th>Semester</th>
                         <th>Section</th>
                         <th>Registered At</th>
                         <th>Status</th>
@@ -120,6 +144,7 @@
                 </thead>
                 <tbody id="coursesModalRows"></tbody>
             </table>
+            <div id="coursesEmptyMsg" style="display:none;text-align:center;padding:24px;color:#9ca3af;">No courses found for this filter.</div>
         </div>
     </div>
 </div>
@@ -216,17 +241,77 @@ document.getElementById('coursesModalBackdrop').addEventListener('click', functi
     if (e.target === this) closeCoursesModal();
 });
 
+let _allModalRegs = [];
+
 function viewCourses(name, regs) {
+    _allModalRegs = regs;
     document.getElementById('coursesModalTitle').textContent = name + ' — Courses';
     document.getElementById('coursesSuccessMsg').style.display = 'none';
+
+    // Build semester filter tabs
+    const sems = [...new Set(regs.map(r => {
+        const c = (r.course_section || {}).course || {};
+        return c.semester || 0;
+    }))].sort((a,b) => a - b);
+
+    const tabBar = document.getElementById('coursesFilterTabs');
+    tabBar.innerHTML = '';
+
+    // "All" tab
+    const allTab = document.createElement('button');
+    allTab.textContent = 'All';
+    allTab.dataset.sem = 'all';
+    allTab.className = 'modal-sem-tab modal-sem-active';
+    allTab.onclick = () => applyCoursesFilter('all', allTab);
+    tabBar.appendChild(allTab);
+
+    sems.forEach(sem => {
+        const btn = document.createElement('button');
+        btn.textContent = sem ? 'Semester ' + sem : 'No Semester';
+        btn.dataset.sem = sem;
+        btn.className = 'modal-sem-tab';
+        btn.onclick = () => applyCoursesFilter(sem, btn);
+        tabBar.appendChild(btn);
+    });
+
+    tabBar.style.display = sems.length > 0 ? 'flex' : 'none';
+
+    renderCourseRows(regs, name);
+    document.getElementById('coursesModalBackdrop').classList.add('show');
+}
+
+function applyCoursesFilter(sem, btn) {
+    document.querySelectorAll('.modal-sem-tab').forEach(t => t.classList.remove('modal-sem-active'));
+    btn.classList.add('modal-sem-active');
+
+    const filtered = sem === 'all'
+        ? _allModalRegs
+        : _allModalRegs.filter(r => {
+            const c = (r.course_section || {}).course || {};
+            return String(c.semester || 0) === String(sem);
+          });
+
+    renderCourseRows(filtered, document.getElementById('coursesModalTitle').textContent.split(' — ')[0]);
+}
+
+function renderCourseRows(regs, name) {
     const tbody = document.getElementById('coursesModalRows');
+    const emptyMsg = document.getElementById('coursesEmptyMsg');
     tbody.innerHTML = '';
+
+    if (regs.length === 0) {
+        emptyMsg.style.display = '';
+        return;
+    }
+    emptyMsg.style.display = 'none';
+
     regs.forEach(reg => {
-        const section   = reg.course_section || {};
-        const course    = section.course || {};
-        const regDate   = reg.registered_at ? reg.registered_at.slice(0, 10) : 'N/A';
-        const status    = reg.status || 'enrolled';
+        const section    = reg.course_section || {};
+        const course     = section.course || {};
+        const regDate    = reg.registered_at ? reg.registered_at.slice(0, 10) : 'N/A';
+        const status     = reg.status || 'enrolled';
         const isEnrolled = status === 'enrolled';
+        const semLabel   = course.semester ? 'Sem ' + course.semester : '—';
 
         const statusBadge = isEnrolled
             ? `<span style="background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;">Enrolled</span>`
@@ -245,13 +330,13 @@ function viewCourses(name, regs) {
         tbody.innerHTML += `<tr>
             <td><strong>${course.code || 'N/A'}</strong></td>
             <td>${course.name || 'N/A'}</td>
+            <td><span style="background:#f3f4f6;color:#374151;padding:2px 8px;border-radius:8px;font-size:0.75rem;">${semLabel}</span></td>
             <td>Sec ${section.section_number || '?'} &bull; ${section.term || ''} ${section.year || ''}</td>
             <td>${regDate}</td>
             <td>${statusBadge}</td>
             <td>${actionBtn}</td>
         </tr>`;
     });
-    document.getElementById('coursesModalBackdrop').classList.add('show');
 }
 
 function closeCoursesModal() {

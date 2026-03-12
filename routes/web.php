@@ -14,6 +14,7 @@ use App\Http\Controllers\TeacherAvailabilityController;
 use App\Http\Controllers\ProfessorController;
 use App\Http\Controllers\StudentCourseRegistrationController;
 use App\Http\Controllers\FeePaymentController;
+    use App\Http\Controllers\PaymentController;
 
 /*
 |--------------------------------------------------------------------------
@@ -123,10 +124,18 @@ Route::middleware(['auth', 'role:professor'])->prefix('professor')->group(functi
 
 // Student Routes
 Route::middleware(['auth', 'role:student'])->prefix('student')->group(function () {
-    Route::get('/dashboard', [DashboardController::class, 'student'])->name('student.dashboard');
+    Route::get('/dashboard',         [DashboardController::class, 'student'])->name('student.dashboard');
+    Route::get('/register-courses',  [DashboardController::class, 'studentRegisterCourses'])->name('student.register-courses');
+    Route::get('/my-courses',        [DashboardController::class, 'studentMyCourses'])->name('student.my-courses');
+    Route::get('/timetable',         [DashboardController::class, 'studentTimetable'])->name('student.timetable');
+    Route::get('/today',             [DashboardController::class, 'studentToday'])->name('student.today');
+    Route::get('/fee-payment',       [DashboardController::class, 'studentFeePayment'])->name('student.fee-payment');
+    Route::get('/profile',           [DashboardController::class, 'studentProfile'])->name('student.profile');
     Route::post('/courses/register', [StudentCourseRegistrationController::class, 'register'])->name('student.courses.register');
     Route::post('/courses/{registration}/drop', [StudentCourseRegistrationController::class, 'drop'])->name('student.courses.drop');
     Route::post('/fees/{feePayment}/pay', [FeePaymentController::class, 'studentPay'])->name('student.fees.pay');
+    Route::post('/fees/{feePayment}/stripe-checkout', [PaymentController::class, 'createCheckoutSession'])->name('student.fees.stripe.checkout');
+    Route::get('/fees/{feePayment}/stripe-success', [PaymentController::class, 'success'])->name('student.fees.stripe.success');
 });
 
 // General Dashboard (for all authenticated users)
