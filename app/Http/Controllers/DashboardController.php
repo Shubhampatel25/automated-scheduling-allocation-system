@@ -17,6 +17,7 @@ use App\Models\Teacher;
 use App\Models\TeacherAvailability;
 use App\Models\Timetable;
 use App\Models\TimetableSlot;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -125,6 +126,181 @@ class DashboardController extends Controller
             ));
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to load dashboard data. Please try again.');
+        }
+    }
+
+    public function hodFacultyMembers(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            $hod = Hod::with('department')->where('user_id', $user->id)->first();
+            $departmentId = $hod?->department_id;
+            $department = $hod?->department;
+
+            if (!$departmentId) {
+                return view('hod.faculty-members', [
+                    'department' => null,
+                    'facultyMembers' => collect(),
+                    'facultyCount' => 0,
+                    'activeFacultyCount' => 0,
+                    'assignedFacultyCount' => 0,
+                    'totalWeeklyHours' => 0,
+                ]);
+            }
+
+            $search = trim((string) $request->get('search'));
+            $status = $request->get('status');
+
+            $activeSlots = TimetableSlot::query()
+                ->whereHas('timetable', function ($q) use ($departmentId) {
+                    $q->where('department_id', $departmentId)->where('status', 'active');
+                })
+                ->get(['teacher_id', 'start_time', 'end_time']);
+
+            $activeSlotCounts = $activeSlots
+                ->groupBy('teacher_id')
+                ->map(function ($slots) {
+                    return (object) [
+                        'classes_per_week' => $slots->count(),
+                        'hours_per_week' => round($slots->sum(function ($slot) {
+                            return (strtotime($slot->end_time) - strtotime($slot->start_time)) / 3600;
+                        }), 1),
+                    ];
+                });
+
+            $facultyQuery = Teacher::query()
+                ->where('department_id', $departmentId)
+                ->withCount('courseAssignments as courses_count')
+                ->with([
+                    'courseAssignments.courseSection.course',
+                    'teacherAvailabilities',
+                ])
+                ->when($search !== '', function ($q) use ($search) {
+                    $q->where(function ($inner) use ($search) {
+                        $inner->where('name', 'like', '%' . $search . '%')
+                            ->orWhere('email', 'like', '%' . $search . '%')
+                            ->orWhere('employee_id', 'like', '%' . $search . '%');
+                    });
+                })
+                ->when(in_array($status, ['active', 'inactive'], true), function ($q) use ($status) {
+                    $q->where('status', $status);
+                })
+                ->orderBy('name');
+
+            $facultyMembers = $facultyQuery->paginate(10)->withQueryString();
+            $facultyMembers->getCollection()->transform(function ($teacher) use ($activeSlotCounts) {
+                $slotStats = $activeSlotCounts->get($teacher->id);
+                $teacher->classes_per_week = (int) round((float) ($slotStats->classes_per_week ?? 0));
+                $teacher->hours_per_week = round((float) ($slotStats->hours_per_week ?? 0), 1);
+                $teacher->assigned_courses_preview = $teacher->courseAssignments
+                    ->map(fn($assignment) => $assignment->courseSection?->course?->name)
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->take(3);
+
+                return $teacher;
+            });
+
+            $facultyCount = Teacher::where('department_id', $departmentId)->count();
+            $activeFacultyCount = Teacher::where('department_id', $departmentId)->where('status', 'active')->count();
+            $assignedFacultyCount = Teacher::where('department_id', $departmentId)
+                ->whereHas('courseAssignments')
+                ->count();
+            $totalWeeklyHours = round(
+                $activeSlotCounts->sum(fn($slot) => (float) ($slot->hours_per_week ?? 0)),
+                1
+            );
+
+            return view('hod.faculty-members', compact(
+                'department',
+                'facultyMembers',
+                'facultyCount',
+                'activeFacultyCount',
+                'assignedFacultyCount',
+                'totalWeeklyHours'
+            ));
+        } catch (\Exception $e) {
+            return back()->with('error', 'Failed to load faculty members data. Please try again.');
+        }
+    }
+
+    public function hodConflicts(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            $hod = Hod::with('department')->where('user_id', $user->id)->first();
+            $departmentId = $hod?->department_id;
+            $department = $hod?->department;
+
+            if (!$departmentId) {
+                return view('hod.conflicts', [
+                    'department' => null,
+                    'conflicts' => collect(),
+                    'unresolvedCount' => 0,
+                    'resolvedCount' => 0,
+                    'teacherConflictCount' => 0,
+                    'roomConflictCount' => 0,
+                ]);
+            }
+
+            $query = Conflict::with([
+                'timetable.department',
+                'slot1.teacher',
+                'slot1.room',
+                'slot1.courseSection.course',
+                'slot2.teacher',
+                'slot2.room',
+                'slot2.courseSection.course',
+            ])->whereHas('timetable', function ($q) use ($departmentId) {
+                $q->where('department_id', $departmentId);
+            });
+
+            if ($request->filled('status')) {
+                $query->where('status', $request->status);
+            }
+
+            if ($request->filled('type')) {
+                $typeMap = [
+                    'capacity_exceeded' => ['capacity_exceeded'],
+                    'room_overlap' => ['room_overlap', 'room_conflict'],
+                    'teacher_overlap' => ['teacher_overlap', 'teacher_conflict'],
+                    'student_overlap' => ['student_overlap', 'student_conflict'],
+                ];
+
+                $selectedTypes = $typeMap[$request->type] ?? [$request->type];
+                $query->whereIn('conflict_type', $selectedTypes);
+            }
+
+            if ($request->filled('search')) {
+                $search = $request->search;
+                $query->where(function ($q) use ($search) {
+                    $q->where('description', 'like', '%' . $search . '%')
+                        ->orWhere('conflict_type', 'like', '%' . $search . '%');
+                });
+            }
+
+            $conflicts = $query->latest('detected_at')->paginate(12)->withQueryString();
+
+            $baseCounts = Conflict::whereHas('timetable', function ($q) use ($departmentId) {
+                $q->where('department_id', $departmentId);
+            });
+
+            $unresolvedCount = (clone $baseCounts)->where('status', 'unresolved')->count();
+            $resolvedCount = (clone $baseCounts)->where('status', 'resolved')->count();
+            $teacherConflictCount = (clone $baseCounts)->where('conflict_type', 'like', '%teacher%')->count();
+            $roomConflictCount = (clone $baseCounts)->where('conflict_type', 'like', '%room%')->count();
+
+            return view('hod.conflicts', compact(
+                'department',
+                'conflicts',
+                'unresolvedCount',
+                'resolvedCount',
+                'teacherConflictCount',
+                'roomConflictCount'
+            ));
+        } catch (\Exception $e) {
+            return back()->with('error', 'Failed to load conflicts data. Please try again.');
         }
     }
 

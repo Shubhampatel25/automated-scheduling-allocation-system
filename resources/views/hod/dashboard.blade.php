@@ -11,7 +11,7 @@
     </a>
 
     <div class="nav-section-title">Department</div>
-    <a href="#section-faculty" class="nav-link">
+    <a href="{{ route('hod.faculty.index') }}" class="nav-link">
         <span class="icon">&#128100;</span> Faculty Members
     </a>
     <a href="#section-courses" class="nav-link">
@@ -20,7 +20,7 @@
     <a href="#section-assignments" class="nav-link">
         <span class="icon">&#128221;</span> Course Assignments
     </a>
-    <a href="#section-conflicts" class="nav-link">
+    <a href="{{ route('hod.conflicts') }}" class="nav-link">
         <span class="icon">&#9888;</span> Conflicts
     </a>
 
@@ -117,7 +117,7 @@
         <div class="dashboard-card" id="section-faculty">
             <div class="card-header">
                 <h3>Faculty Members</h3>
-                <a href="#section-faculty" class="badge badge-primary">View All</a>
+                <a href="{{ route('hod.faculty.index') }}" class="badge badge-primary">View All</a>
             </div>
             <div class="card-body">
                 @if(isset($facultyMembers) && count($facultyMembers) > 0)
@@ -268,7 +268,7 @@
         <div class="dashboard-card full-width" id="section-conflicts">
             <div class="card-header">
                 <h3>Schedule Conflicts</h3>
-                <a href="#section-conflicts" class="badge badge-danger">{{ $conflictCount ?? 0 }} Issues</a>
+                <a href="{{ route('hod.conflicts') }}" class="badge badge-danger">{{ $conflictCount ?? 0 }} Issues</a>
             </div>
             <div class="card-body">
                 @if(isset($conflicts) && count($conflicts) > 0)
