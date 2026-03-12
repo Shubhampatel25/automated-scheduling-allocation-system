@@ -15,6 +15,8 @@ class Course extends Model
         'code',
         'name',
         'department_id',
+        'semester',
+        'fee',
         'credits',
         'type',
         'description',

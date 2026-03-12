@@ -5,43 +5,7 @@
 @section('page-title', 'Admin Dashboard')
 
 @section('sidebar-nav')
-    <div class="nav-section-title">Main</div>
-    <a href="{{ route('admin.dashboard') }}" class="nav-link active">
-        <span class="icon">&#9776;</span> Dashboard
-    </a>
-
-    <div class="nav-section-title">Management</div>
-    <a href="#section-departments" class="nav-link">
-        <span class="icon">&#127979;</span> Departments
-    </a>
-    <a href="#section-teachers" class="nav-link">
-        <span class="icon">&#128100;</span> Teachers
-    </a>
-    <a href="#section-courses" class="nav-link">
-        <span class="icon">&#128218;</span> Courses
-    </a>
-    <a href="#section-rooms" class="nav-link">
-        <span class="icon">&#127970;</span> Rooms
-    </a>
-    <a href="#section-students" class="nav-link">
-        <span class="icon">&#128101;</span> Students
-    </a>
-
-    <div class="nav-section-title">Scheduling</div>
-    <a href="#section-timetables" class="nav-link">
-        <span class="icon">&#128203;</span> View Timetables
-    </a>
-    <a href="#section-conflicts" class="nav-link">
-        <span class="icon">&#9888;</span> Conflicts
-    </a>
-
-    <div class="nav-section-title">System</div>
-    <a href="#section-activity" class="nav-link">
-        <span class="icon">&#128196;</span> Activity Logs
-    </a>
-    <a href="#" class="nav-link">
-        <span class="icon">&#9881;</span> Settings
-    </a>
+    @include('admin.partials.sidebar')
 @endsection
 
 @section('content')
@@ -102,23 +66,23 @@
 
     <!-- Quick Actions -->
     <div class="quick-actions">
-        <a href="#section-departments" class="action-btn">
+        <a href="{{ route('admin.departments.index', ['add' => '1']) }}" class="action-btn">
             <div class="action-icon">&#127979;</div>
             Add Department
         </a>
-        <a href="#section-teachers" class="action-btn">
+        <a href="{{ route('admin.teachers.index', ['add' => '1']) }}" class="action-btn">
             <div class="action-icon">&#128100;</div>
             Add Teacher
         </a>
-        <a href="#section-courses" class="action-btn">
+        <a href="{{ route('admin.courses.index', ['add' => '1']) }}" class="action-btn">
             <div class="action-icon">&#128218;</div>
             Add Course
         </a>
-        <a href="#section-rooms" class="action-btn">
+        <a href="{{ route('admin.rooms.index', ['add' => '1']) }}" class="action-btn">
             <div class="action-icon">&#127970;</div>
             Add Room
         </a>
-        <a href="#section-students" class="action-btn">
+        <a href="{{ route('admin.students.index', ['add' => '1']) }}" class="action-btn">
             <div class="action-icon">&#128101;</div>
             Add Student
         </a>
@@ -295,7 +259,7 @@
                             @foreach($recentDepartments as $department)
                                 <tr>
                                     <td>{{ $department->name ?? 'N/A' }}</td>
-                                    <td>{{ $department->hod->teacher->name ?? 'Not Assigned' }}</td>
+                                    <td>{{ $department->hods->first()?->teacher?->name ?? 'Not Assigned' }}</td>
                                     <td>{{ $department->teachers_count ?? 0 }}</td>
                                     <td>{{ $department->courses_count ?? 0 }}</td>
                                     <td><span class="status status-active">Active</span></td>

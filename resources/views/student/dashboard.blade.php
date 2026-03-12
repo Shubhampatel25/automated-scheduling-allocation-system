@@ -5,29 +5,7 @@
 @section('page-title', 'Student Dashboard')
 
 @section('sidebar-nav')
-    <div class="nav-section-title">Main</div>
-    <a href="{{ route('student.dashboard') }}" class="nav-link active">
-        <span class="icon">&#9776;</span> Dashboard
-    </a>
-
-    <div class="nav-section-title">Academics</div>
-    <a href="#section-courses" class="nav-link">
-        <span class="icon">&#128218;</span> My Courses
-    </a>
-    <a href="#section-timetable" class="nav-link">
-        <span class="icon">&#128197;</span> My Timetable
-    </a>
-    <a href="#section-today" class="nav-link">
-        <span class="icon">&#128197;</span> Today's Classes
-    </a>
-    <a href="#section-teachers" class="nav-link">
-        <span class="icon">&#128100;</span> My Teachers
-    </a>
-
-    <div class="nav-section-title">Account</div>
-    <a href="#section-profile" class="nav-link">
-        <span class="icon">&#128100;</span> My Profile
-    </a>
+    @include('student.partials.sidebar')
 @endsection
 
 @section('content')
@@ -35,9 +13,9 @@
     <div class="welcome-banner">
         <div>
             <h2>Welcome, {{ Auth::user()->username }}!</h2>
-            <p>View your class schedule, enrolled courses, and academic information.</p>
+            <p>Register for courses, view your schedule, and manage your academic information.</p>
         </div>
-        <a href="#section-timetable" class="banner-btn">View Timetable</a>
+        <a href="{{ route('student.register-courses') }}" class="banner-btn">Register Courses</a>
     </div>
 
     <!-- Stats Grid -->
@@ -45,244 +23,81 @@
         <div class="stat-card">
             <div class="stat-icon blue">&#128218;</div>
             <div class="stat-details">
-                <h3>{{ $courseCount ?? 0 }}</h3>
+                <h3>{{ $courseCount }}</h3>
                 <p>Enrolled Courses</p>
             </div>
         </div>
         <div class="stat-card">
             <div class="stat-icon green">&#128197;</div>
             <div class="stat-details">
-                <h3>{{ $classesPerWeek ?? 0 }}</h3>
+                <h3>{{ $classesPerWeek }}</h3>
                 <p>Classes / Week</p>
             </div>
         </div>
         <div class="stat-card">
             <div class="stat-icon purple">&#128100;</div>
             <div class="stat-details">
-                <h3>{{ $teacherCount ?? 0 }}</h3>
+                <h3>{{ $teacherCount }}</h3>
                 <p>Teachers</p>
             </div>
         </div>
         <div class="stat-card">
             <div class="stat-icon orange">&#128336;</div>
             <div class="stat-details">
-                <h3>{{ $totalCredits ?? 0 }}</h3>
+                <h3>{{ $totalCredits }}</h3>
                 <p>Total Credits</p>
             </div>
         </div>
     </div>
 
+    @if(session('success'))
+    <div style="background:#d1fae5;color:#065f46;padding:12px 18px;border-radius:8px;margin-bottom:16px;font-size:0.9rem;border:1px solid #a7f3d0;">
+        &#10003; {{ session('success') }}
+    </div>
+    @endif
+    @if(session('error'))
+    <div style="background:#fee2e2;color:#991b1b;padding:12px 18px;border-radius:8px;margin-bottom:16px;font-size:0.9rem;border:1px solid #fca5a5;">
+        &#9888; {{ session('error') }}
+    </div>
+    @endif
+
     <!-- Quick Actions -->
     <div class="quick-actions">
-        <a href="#section-courses" class="action-btn">
+        <a href="{{ route('student.register-courses') }}" class="action-btn">
+            <div class="action-icon">&#43;</div>
+            Register Courses
+        </a>
+        <a href="{{ route('student.my-courses') }}" class="action-btn">
             <div class="action-icon">&#128218;</div>
             My Courses
         </a>
-        <a href="#section-timetable" class="action-btn">
+        <a href="{{ route('student.timetable') }}" class="action-btn">
             <div class="action-icon">&#128197;</div>
             View Timetable
         </a>
-        <a href="#section-today" class="action-btn">
-            <div class="action-icon">&#128197;</div>
+        <a href="{{ route('student.today') }}" class="action-btn">
+            <div class="action-icon">&#128336;</div>
             Today's Classes
         </a>
-        <a href="#section-teachers" class="action-btn">
-            <div class="action-icon">&#128100;</div>
-            My Teachers
+        <a href="{{ route('student.fee-payment') }}" class="action-btn">
+            <div class="action-icon">&#128178;</div>
+            Fee Payment
         </a>
-        <a href="#section-profile" class="action-btn">
+        <a href="{{ route('student.profile') }}" class="action-btn">
             <div class="action-icon">&#128100;</div>
             My Profile
         </a>
     </div>
 
-    <!-- Dashboard Grid -->
-    <div class="dashboard-grid">
-
-        <!-- Enrolled Courses -->
-        <div class="dashboard-card" id="section-courses">
-            <div class="card-header">
-                <h3>My Courses</h3>
-                <a href="#section-courses" class="badge badge-primary">{{ $courseCount ?? 0 }} Enrolled</a>
-            </div>
-            <div class="card-body">
-                @if(isset($enrolledCourses) && count($enrolledCourses) > 0)
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Code</th>
-                                <th>Course Name</th>
-                                <th>Teacher</th>
-                                <th>Credits</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($enrolledCourses as $course)
-                                <tr>
-                                    <td>{{ $course->code ?? 'N/A' }}</td>
-                                    <td>{{ $course->name ?? 'N/A' }}</td>
-                                    @php
-                                        $assignment = $course->sections->flatMap(fn($s) => $s->assignments)->first();
-                                    @endphp
-                                    <td>{{ $assignment?->teacher?->name ?? 'TBA' }}</td>
-                                    <td>{{ $course->credits ?? 'N/A' }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                @else
-                    <div class="empty-state">
-                        <div class="empty-icon">&#128218;</div>
-                        <p>No courses enrolled yet</p>
-                    </div>
-                @endif
-            </div>
+    <!-- Fee status alert on dashboard -->
+    @if($feeRecord && $feeRecord->status !== 'paid')
+    <div style="background:#fef3c7;color:#92400e;padding:14px 18px;border-radius:8px;margin-top:16px;border:1px solid #fde68a;display:flex;align-items:center;gap:10px;">
+        <span style="font-size:1.2rem">&#9888;</span>
+        <div>
+            <strong>Fee Payment Pending</strong> &mdash; Your Semester {{ $semester }} fee is
+            <strong>{{ ucfirst($feeRecord->status) }}</strong>. Course registration requires full payment.
+            <a href="{{ route('student.fee-payment') }}" style="color:#92400e;text-decoration:underline;margin-left:6px;">Pay Now &rarr;</a>
         </div>
-
-        <!-- Today's Schedule -->
-        <div class="dashboard-card" id="section-today">
-            <div class="card-header">
-                <h3>Today's Classes</h3>
-                <a href="#section-today" class="badge badge-success">{{ now()->format('l') }}</a>
-            </div>
-            <div class="card-body">
-                @if(isset($todaySchedule) && count($todaySchedule) > 0)
-                    <ul class="activity-list">
-                        @foreach($todaySchedule as $slot)
-                            <li class="activity-item">
-                                <div class="activity-dot blue"></div>
-                                <div class="activity-content">
-                                    <h4>{{ $slot->courseSection->course->name ?? 'N/A' }}</h4>
-                                    <p>{{ substr($slot->start_time, 0, 5) }} - {{ substr($slot->end_time, 0, 5) }} | Room: {{ $slot->room->room_number ?? 'TBA' }} | Prof: {{ $slot->teacher->name ?? 'TBA' }}</p>
-                                </div>
-                            </li>
-                        @endforeach
-                    </ul>
-                @else
-                    <div class="empty-state">
-                        <div class="empty-icon">&#128197;</div>
-                        <p>No classes scheduled for today</p>
-                    </div>
-                @endif
-            </div>
-        </div>
-
-        <!-- My Teachers -->
-        <div class="dashboard-card full-width" id="section-teachers">
-            <div class="card-header">
-                <h3>My Teachers</h3>
-                <span class="badge badge-primary">{{ $teacherCount ?? 0 }} Teachers</span>
-            </div>
-            <div class="card-body">
-                @if(isset($myTeachers) && count($myTeachers) > 0)
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Course</th>
-                                <th>Department</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($myTeachers as $teacher)
-                                <tr>
-                                    <td>{{ $teacher->name ?? 'N/A' }}</td>
-                                    <td>{{ $teacher->course->name ?? 'N/A' }}</td>
-                                    <td>{{ $teacher->department->name ?? 'N/A' }}</td>
-                                    <td><span class="status status-active">Active</span></td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                @else
-                    <div class="empty-state">
-                        <div class="empty-icon">&#128100;</div>
-                        <p>No teachers found</p>
-                    </div>
-                @endif
-            </div>
-        </div>
-
-        <!-- Weekly Timetable -->
-        <div class="dashboard-card full-width" id="section-timetable">
-            <div class="card-header">
-                <h3>My Weekly Timetable</h3>
-                <a href="#section-timetable" class="badge badge-warning">Full View</a>
-            </div>
-            <div class="card-body">
-                <div class="timetable-container">
-                    @if(isset($weeklySchedule) && count($weeklySchedule) > 0)
-                        <table class="timetable">
-                            <thead>
-                                <tr>
-                                    <th>Time</th>
-                                    <th>Monday</th>
-                                    <th>Tuesday</th>
-                                    <th>Wednesday</th>
-                                    <th>Thursday</th>
-                                    <th>Friday</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach(['08:00 - 09:30', '09:30 - 11:00', '11:00 - 12:30', '13:00 - 14:30', '14:30 - 16:00'] as $time)
-                                    <tr>
-                                        <td class="time-col">{{ $time }}</td>
-                                        @foreach(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] as $day)
-                                            <td>
-                                                @php
-                                                    [$startStr] = explode(' - ', $time);
-                                                    $slot = collect($weeklySchedule)->first(fn($s) => ($s->day_of_week ?? '') === $day && substr($s->start_time, 0, 5) === $startStr);
-                                                @endphp
-                                                @if($slot)
-                                                    <div class="slot">
-                                                        <div class="course-name">{{ $slot->courseSection->course->name ?? '' }}</div>
-                                                        <div class="room-name">{{ $slot->room->room_number ?? '' }}</div>
-                                                        <div class="teacher-name">{{ $slot->teacher->name ?? '' }}</div>
-                                                    </div>
-                                                @endif
-                                            </td>
-                                        @endforeach
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    @else
-                        <div class="empty-state">
-                            <div class="empty-icon">&#128197;</div>
-                            <p>No timetable generated yet</p>
-                        </div>
-                    @endif
-                </div>
-            </div>
-        </div>
-
-        <!-- Student Profile -->
-        <div class="dashboard-card" id="section-profile">
-            <div class="card-header">
-                <h3>My Profile</h3>
-            </div>
-            <div class="card-body">
-                <div class="info-grid">
-                    <div class="info-item">
-                        <div class="info-label">Name</div>
-                        <div class="info-value">{{ Auth::user()->username }}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Email</div>
-                        <div class="info-value">{{ Auth::user()->email }}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Department</div>
-                        <div class="info-value">{{ $department ?? 'N/A' }}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Semester</div>
-                        <div class="info-value">{{ $semester ?? 'N/A' }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
     </div>
+    @endif
 @endsection

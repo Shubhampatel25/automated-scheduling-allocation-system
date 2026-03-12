@@ -1,0 +1,312 @@
+/* ============================================
+   Manage Pages — Shared Styles
+   Used by: teachers, students, courses,
+            hods, rooms, departments
+   ============================================ */
+
+/* Page Header */
+.manage-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.manage-title h2 {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin: 0;
+}
+
+.breadcrumb-nav {
+    font-size: 0.78rem;
+    color: #9ca3af;
+    margin-top: 4px;
+}
+
+.breadcrumb-nav a {
+    color: #6366f1;
+    text-decoration: none;
+}
+
+.breadcrumb-nav a:hover {
+    text-decoration: underline;
+}
+
+/* Add Button */
+.btn-add {
+    padding: 10px 18px;
+    background: #6366f1;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    cursor: pointer;
+    font-weight: 500;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-add:hover {
+    background: #4f46e5;
+}
+
+/* Table Toolbar */
+.table-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0;
+}
+
+.rows-label {
+    font-size: 0.82rem;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.rows-label select {
+    padding: 4px 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    font-size: 0.82rem;
+}
+
+/* Search Box */
+.search-wrap {
+    position: relative;
+}
+
+.search-wrap input {
+    padding: 8px 14px 8px 36px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    width: 220px;
+    background: #f9fafb;
+}
+
+.search-wrap input:focus {
+    outline: none;
+    border-color: #6366f1;
+}
+
+.search-wrap .si {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #9ca3af;
+    font-size: 0.8rem;
+}
+
+/* Table Action Links */
+.link-edit {
+    color: #6366f1;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 0;
+    font-family: inherit;
+}
+
+.link-edit:hover {
+    text-decoration: underline;
+}
+
+.link-del {
+    color: #ef4444;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 0;
+    font-family: inherit;
+}
+
+.link-del:hover {
+    text-decoration: underline;
+}
+
+.sep {
+    color: #d1d5db;
+}
+
+/* Modal Backdrop */
+.modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 999;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-backdrop.show {
+    display: flex;
+}
+
+/* Modal Card */
+.modal-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 32px;
+    width: 480px;
+    max-width: 94vw;
+    max-height: 88vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.modal-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 22px;
+}
+
+.modal-top h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.modal-close-btn {
+    background: none;
+    border: none;
+    font-size: 1.4rem;
+    color: #9ca3af;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.modal-close-btn:hover {
+    color: #374151;
+}
+
+/* Form Fields */
+.field-group {
+    margin-bottom: 16px;
+}
+
+.field-group label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 6px;
+}
+
+.field-group input,
+.field-group select,
+.field-group textarea {
+    width: 100%;
+    padding: 10px 13px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    color: #1f2937;
+    background: #fff;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+.field-group textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.field-group input:focus,
+.field-group select:focus,
+.field-group textarea:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08);
+}
+
+/* Submit Button */
+.btn-submit {
+    width: 100%;
+    padding: 11px;
+    background: #6366f1;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.92rem;
+    font-weight: 500;
+    cursor: pointer;
+    margin-top: 6px;
+    font-family: inherit;
+}
+
+.btn-submit:hover {
+    background: #4f46e5;
+}
+
+/* Validation Error Box */
+.err-box {
+    background: #fef2f2;
+    color: #b91c1c;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    border: 1px solid #fecaca;
+    font-size: 0.85rem;
+}
+
+.err-box ul {
+    margin: 0;
+    padding-left: 18px;
+}
+
+/* ============================================
+   Course Type Badges
+   ============================================ */
+.type-badge {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.type-theory {
+    background: #ede9fe;
+    color: #6d28d9;
+}
+
+.type-lab {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.type-hybrid {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+/* ============================================
+   Room Type Badges
+   ============================================ */
+.room-type-badge {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.type-classroom {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.type-seminar_hall {
+    background: #fef3c7;
+    color: #92400e;
+}
