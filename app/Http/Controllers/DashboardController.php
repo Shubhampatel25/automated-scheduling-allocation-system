@@ -19,6 +19,9 @@ use App\Models\Timetable;
 use App\Models\TimetableSlot;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Http\Request;
+
+
 
 class DashboardController extends Controller
 {
@@ -127,6 +130,145 @@ class DashboardController extends Controller
             return back()->with('error', 'Failed to load dashboard data. Please try again.');
         }
     }
+
+
+/**
+     * HOD: View all department courses
+     */
+    public function hodCourses(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            $hod = Hod::where('user_id', $user->id)->first();
+
+            if (!$hod) {
+                return back()->with('error', 'HOD record not found.');
+            }
+
+
+            $departmentId = $hod->department_id;
+            $search = $request->get('search');
+            $statusFilter = $request->get('status');
+
+            $courses = Course::where('department_id', $departmentId)
+                ->with(['sections.assignments.teacher'])
+                ->when($search, function ($query, $search) {
+                    $query->where(function ($q) use ($search) {
+                        $q->where('code', 'like', "%{$search}%")
+                          ->orWhere('name', 'like', "%{$search}%");
+                    });
+                })
+                ->when($statusFilter === 'assigned', function ($query) {
+                    $query->whereHas('sections.assignments');
+                })
+                ->when($statusFilter === 'unassigned', function ($query) {
+                    $query->whereDoesntHave('sections.assignments');
+                })
+                ->latest('created_at')
+                ->paginate(15)
+                ->withQueryString();
+
+            $allCourses = Course::where('department_id', $departmentId)
+                ->with('sections.assignments')
+                ->get();
+
+            $assignedCount = 0;
+            $unassignedCount = 0;
+
+            foreach ($allCourses as $course) {
+                $hasAssignment = false;
+                foreach ($course->sections as $section) {
+                    if ($section->assignments->count() > 0) {
+                        $hasAssignment = true;
+                        break;
+                    }
+                }
+                if ($hasAssignment) {
+                    $assignedCount++;
+                } else {
+                    $unassignedCount++;
+                }
+            }
+
+           
+            return view('hod.courses', compact(
+                'courses',
+                'assignedCount',
+                'unassignedCount',
+                
+            ));
+        } catch (\Exception $e) {
+            return back()->with('error', 'Failed to load courses: ' . $e->getMessage());
+        }
+    }
+
+
+
+
+    /**
+     * HOD: View all course assignments
+     */
+    public function hodAssignments(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            $hod = Hod::where('user_id', $user->id)->first();
+
+            if (!$hod) {
+                return back()->with('error', 'HOD record not found.');
+            }
+
+            $departmentId = $hod->department_id;
+            $search = $request->get('search');
+
+            // Get course assignments for this department
+            $assignments = CourseAssignment::whereHas('courseSection.course', function ($q) use ($departmentId) {
+                $q->where('department_id', $departmentId);
+            })
+            ->with(['courseSection.course', 'teacher'])
+            ->when($search, function ($query, $search) {
+                $query->where(function ($q) use ($search) {
+                    $q->whereHas('courseSection.course', function ($q2) use ($search) {
+                        $q2->where('name', 'like', "%{$search}%")
+                           ->orWhere('code', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('teacher', function ($q2) use ($search) {
+                        $q2->where('name', 'like', "%{$search}%");
+                    });
+                });
+            })
+            ->latest('assigned_date')
+            ->paginate(15)
+            ->withQueryString();
+
+            // Calculate statistics
+            $allAssignments = CourseAssignment::whereHas('courseSection.course', function ($q) use ($departmentId) {
+                $q->where('department_id', $departmentId);
+            })
+            ->with(['teacher', 'courseSection.course'])
+            ->get();
+
+            $teacherCount = $allAssignments->pluck('teacher_id')->unique()->count();
+            $courseCount = $allAssignments->pluck('courseSection.course.id')->unique()->count();
+
+            return view('hod.course-assignments', compact(
+                'assignments',
+                'teacherCount',
+                'courseCount'
+            ));
+        } catch (\Exception $e) {
+            return back()->with('error', 'Failed to load assignments: ' . $e->getMessage());
+        }
+    }
+
+
+
+
+
+
+
+
+
 
     public function professor()
     {

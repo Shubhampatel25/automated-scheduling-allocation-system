@@ -14,12 +14,23 @@
     <a href="#section-faculty" class="nav-link">
         <span class="icon">&#128100;</span> Faculty Members
     </a>
-    <a href="#section-courses" class="nav-link">
-        <span class="icon">&#128218;</span> Courses
-    </a>
-    <a href="#section-assignments" class="nav-link">
-        <span class="icon">&#128221;</span> Course Assignments
-    </a>
+
+
+
+    <a href="{{ route('hod.courses') }}" class="nav-link">
+    <span class="icon">&#128218;</span> Courses
+</a>
+
+
+
+
+   <a href="{{ route('hod.assignments') }}" class="nav-link">
+    <span class="icon">&#128221;</span> Course Assignments
+</a>
+
+
+
+
     <a href="#section-conflicts" class="nav-link">
         <span class="icon">&#9888;</span> Conflicts
     </a>
@@ -152,7 +163,15 @@
         <div class="dashboard-card" id="section-courses">
             <div class="card-header">
                 <h3>Department Courses</h3>
-                <a href="#section-courses" class="badge badge-success">View All</a>
+
+
+
+
+               <a href="{{ route('hod.courses') }}" class="badge badge-success">View All</a>
+
+
+
+
             </div>
             <div class="card-body">
                 @if(isset($departmentCourses) && count($departmentCourses) > 0)
@@ -188,10 +207,17 @@
 
         <!-- Course Assignments -->
         <div class="dashboard-card full-width" id="section-assignments">
+
+
+
             <div class="card-header">
                 <h3>Course Assignments</h3>
-                <span class="badge badge-primary">{{ $assignmentCount ?? 0 }} Assigned</span>
+
+
+                <a href="{{ route('hod.assignments') }}" class="badge badge-primary">{{ $assignmentCount ?? 0 }} Assigned</a>
             </div>
+
+            
             <div class="card-body">
                 @if(isset($courseAssignments) && count($courseAssignments) > 0)
                     <table class="data-table">

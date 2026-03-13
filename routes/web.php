@@ -104,6 +104,13 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
 // HOD Routes
 Route::middleware(['auth', 'role:hod'])->prefix('hod')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'hod'])->name('hod.dashboard');
+
+
+Route::get('/courses', [DashboardController::class, 'hodCourses'])->name('hod.courses');
+
+Route::get('/assignments', [DashboardController::class, 'hodAssignments'])->name('hod.assignments');
+
+
     Route::post('/timetable/generate', [TimetableController::class, 'generate'])->name('hod.timetable.generate');
     Route::post('/timetable/{timetable}/activate', [TimetableController::class, 'activate'])->name('hod.timetable.activate');
     Route::post('/timetable/{timetable}/delete', [TimetableController::class, 'destroy'])->name('hod.timetable.delete');
