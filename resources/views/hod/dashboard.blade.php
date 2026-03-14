@@ -5,43 +5,7 @@
 @section('page-title', 'HOD Dashboard')
 
 @section('sidebar-nav')
-    <div class="nav-section-title">Main</div>
-    <a href="{{ route('hod.dashboard') }}" class="nav-link active">
-        <span class="icon">&#9776;</span> Dashboard
-    </a>
-
-    <div class="nav-section-title">Department</div>
-    <a href="#section-faculty" class="nav-link">
-        <span class="icon">&#128100;</span> Faculty Members
-    </a>
-    <a href="#section-courses" class="nav-link">
-        <span class="icon">&#128218;</span> Courses
-    </a>
-    <a href="#section-assignments" class="nav-link">
-        <span class="icon">&#128221;</span> Course Assignments
-    </a>
-    <a href="#section-conflicts" class="nav-link">
-        <span class="icon">&#9888;</span> Conflicts
-    </a>
-
-    <div class="nav-section-title">Scheduling</div>
-    <a href="#" class="nav-link">
-        <span class="icon">&#128197;</span> Generate Timetable
-    </a>
-    <a href="#section-timetable" class="nav-link">
-        <span class="icon">&#128197;</span> Department Timetable
-    </a>
-    <a href="#" class="nav-link">
-        <span class="icon">&#128203;</span> Approve Schedule
-    </a>
-
-    <div class="nav-section-title">Reports</div>
-    <a href="#section-workload" class="nav-link">
-        <span class="icon">&#128202;</span> Faculty Workload
-    </a>
-    <a href="#" class="nav-link">
-        <span class="icon">&#128196;</span> Department Report
-    </a>
+    @include('hod.partials.sidebar')
 @endsection
 
 @section('content')
@@ -88,23 +52,23 @@
 
     <!-- Quick Actions -->
     <div class="quick-actions">
-        <a href="#section-assignments" class="action-btn">
+        <a href="{{ route('hod.assign-course') }}" class="action-btn">
             <div class="action-icon">&#128221;</div>
             Assign Course
         </a>
-        <a href="#" class="action-btn">
+        <a href="{{ route('hod.generate-timetable') }}" class="action-btn">
             <div class="action-icon">&#128197;</div>
             Generate Timetable
         </a>
-        <a href="#section-timetable" class="action-btn">
+        <a href="{{ route('hod.view-timetable') }}" class="action-btn">
             <div class="action-icon">&#128197;</div>
             View Timetable
         </a>
-        <a href="#section-workload" class="action-btn">
+        <a href="{{ route('hod.faculty-workload') }}" class="action-btn">
             <div class="action-icon">&#128202;</div>
             Faculty Workload
         </a>
-        <a href="#" class="action-btn">
+        <a href="{{ route('hod.approve-schedule') }}" class="action-btn">
             <div class="action-icon">&#128203;</div>
             Approve Schedule
         </a>

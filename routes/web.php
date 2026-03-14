@@ -14,6 +14,7 @@ use App\Http\Controllers\TeacherAvailabilityController;
 use App\Http\Controllers\ProfessorController;
 use App\Http\Controllers\StudentCourseRegistrationController;
 use App\Http\Controllers\FeePaymentController;
+use App\Http\Controllers\HodPagesController;
 
 /*
 |--------------------------------------------------------------------------
@@ -103,9 +104,21 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
 // HOD Routes
 Route::middleware(['auth', 'role:hod'])->prefix('hod')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'hod'])->name('hod.dashboard');
+
+    // Timetable generation & management
     Route::post('/timetable/generate', [TimetableController::class, 'generate'])->name('hod.timetable.generate');
     Route::post('/timetable/{timetable}/activate', [TimetableController::class, 'activate'])->name('hod.timetable.activate');
     Route::post('/timetable/{timetable}/delete', [TimetableController::class, 'destroy'])->name('hod.timetable.delete');
+
+    // HOD Page routes
+    Route::get('/assign-course', [HodPagesController::class, 'assignCourse'])->name('hod.assign-course');
+    Route::post('/assign-course', [HodPagesController::class, 'storeAssignment'])->name('hod.assign-course.store');
+    Route::delete('/assign-course/{assignment}', [HodPagesController::class, 'destroyAssignment'])->name('hod.assign-course.destroy');
+
+    Route::get('/generate-timetable', [HodPagesController::class, 'generateTimetable'])->name('hod.generate-timetable');
+    Route::get('/view-timetable', [HodPagesController::class, 'viewTimetable'])->name('hod.view-timetable');
+    Route::get('/faculty-workload', [HodPagesController::class, 'facultyWorkload'])->name('hod.faculty-workload');
+    Route::get('/approve-schedule', [HodPagesController::class, 'approveSchedule'])->name('hod.approve-schedule');
 });
 
 // Professor Routes
