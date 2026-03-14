@@ -221,6 +221,7 @@ class DashboardController extends Controller
             $query->where('year', $request->year);
         }
 
+        /** @var \Illuminate\Pagination\LengthAwarePaginator $timetables */
         $timetables = $query->latest('generated_at')->paginate(15)->withQueryString();
 
         return view('admin.schedule.index', compact('timetables', 'departments'));
@@ -240,6 +241,7 @@ class DashboardController extends Controller
             $query->where('description', 'like', '%' . $request->search . '%');
         }
 
+        /** @var \Illuminate\Pagination\LengthAwarePaginator $conflicts */
         $conflicts = $query->latest('detected_at')->paginate(20)->withQueryString();
         $unresolvedCount = Conflict::where('status', 'unresolved')->count();
         $resolvedCount   = Conflict::where('status', 'resolved')->count();
@@ -262,6 +264,7 @@ class DashboardController extends Controller
             $query->where('entity_type', $request->entity_type);
         }
 
+        /** @var \Illuminate\Pagination\LengthAwarePaginator $logs */
         $logs = $query->latest('created_at')->paginate(25)->withQueryString();
         $entityTypes = ActivityLog::select('entity_type')->distinct()->whereNotNull('entity_type')->pluck('entity_type');
 
@@ -271,103 +274,32 @@ class DashboardController extends Controller
     public function student()
     {
         try {
-            $user = Auth::user();
-            $studentRecord = Student::with('department')->where('user_id', $user->id)->first();
-            $studentId = $studentRecord ? $studentRecord->id : null;
+            $base = $this->getStudentBase();
+            extract($base);
 
-            // Enrolled-only IDs used to filter available sections
             $enrolledSectionIds = $studentId
                 ? StudentCourseRegistration::where('student_id', $studentId)
                     ->where('status', 'enrolled')
                     ->pluck('course_section_id')
                 : collect();
 
-            // All registrations (enrolled + completed) for My Courses display
-            $enrolledRegistrations = $studentId
-                ? StudentCourseRegistration::where('student_id', $studentId)
-                    ->whereIn('status', ['enrolled', 'completed'])
-                    ->with(['courseSection.course.department', 'courseSection.assignments.teacher'])
-                    ->get()
-                : collect();
-
-            // Build courses list with registration status for badge/drop logic
-            $enrolledCourses = $enrolledRegistrations->map(function ($reg) {
-                $section = $reg->courseSection;
-                $course  = $section ? clone $section->course : null;
-                if ($course) {
-                    $course->registrationId     = $reg->id;
-                    $course->registrationStatus = $reg->status;
-                    $course->sectionInfo        = $section;
-                    $assignment = $section->assignments->first();
-                    $course->teacherName = $assignment && $assignment->teacher ? $assignment->teacher->name : 'TBA';
-                }
-                return $course;
-            })->filter()->values();
-
-            $courseCount  = $enrolledCourses->where('registrationStatus', 'enrolled')->count();
-            $totalCredits = $enrolledCourses->where('registrationStatus', 'enrolled')->sum('credits');
-
-            $teacherCount = $enrolledSectionIds->isNotEmpty()
-                ? CourseAssignment::whereIn('course_section_id', $enrolledSectionIds)
-                    ->distinct()->count('teacher_id')
+            $courseCount  = $studentId
+                ? StudentCourseRegistration::where('student_id', $studentId)->where('status', 'enrolled')->count()
                 : 0;
-
-            $allSlots = $enrolledSectionIds->isNotEmpty()
+            $totalCredits = $studentId
+                ? StudentCourseRegistration::where('student_id', $studentId)
+                    ->where('status', 'enrolled')
+                    ->with('courseSection.course')
+                    ->get()->sum(fn($r) => $r->courseSection->course->credits ?? 0)
+                : 0;
+            $teacherCount = $enrolledSectionIds->isNotEmpty()
+                ? CourseAssignment::whereIn('course_section_id', $enrolledSectionIds)->distinct()->count('teacher_id')
+                : 0;
+            $classesPerWeek = $enrolledSectionIds->isNotEmpty()
                 ? TimetableSlot::whereIn('course_section_id', $enrolledSectionIds)
-                    ->whereHas('timetable', function ($q) { $q->where('status', 'active'); })
-                    ->with(['courseSection.course', 'teacher', 'room'])
-                    ->get()
-                : collect();
-
-            $classesPerWeek = $allSlots->count();
-            $today          = now()->format('l');
-            $todaySchedule  = $allSlots->where('day_of_week', $today)->sortBy('start_time')->values();
-            $weeklySchedule = $allSlots;
-
-            // Check fee payment status for current semester
-            $currentYear = now()->year;
-            $feeRecord   = null;
-            $feePaid     = false;
-            if ($studentRecord) {
-                $feeRecord = FeePayment::where('student_id', $studentRecord->id)
-                    ->where('semester', $studentRecord->semester)
-                    ->where('year', $currentYear)
-                    ->first();
-
-                // Auto-sync fee amount from enrolled courses if record exists and is not yet paid
-                if ($feeRecord && $feeRecord->status !== 'paid') {
-                    $calculatedTotal = $enrolledCourses
-                        ->where('registrationStatus', 'enrolled')
-                        ->sum(fn($c) => (float) ($c->fee ?? 0));
-                    if ((float) $feeRecord->amount !== $calculatedTotal) {
-                        DB::table('fee_payments')
-                            ->where('id', $feeRecord->id)
-                            ->update(['amount' => $calculatedTotal]);
-                        $feeRecord->amount = $calculatedTotal;
-                    }
-                }
-
-                $feePaid = $feeRecord && $feeRecord->status === 'paid';
-            }
-
-            // Available sections: only from student's department + semester, not enrolled, has capacity
-            $availableSections = collect();
-            if ($studentRecord && $feePaid) {
-                $studentDeptId = $studentRecord->department_id;
-                $studentSemester = $studentRecord->semester;
-
-                $availableSections = CourseSection::whereNotIn('id', $enrolledSectionIds->toArray())
-                    ->whereColumn('enrolled_students', '<', 'max_students')
-                    ->whereHas('course', function ($q) use ($studentDeptId, $studentSemester) {
-                        $q->where('department_id', $studentDeptId)
-                          ->where(function ($q2) use ($studentSemester) {
-                              $q2->where('semester', $studentSemester)
-                                 ->orWhereNull('semester');
-                          });
-                    })
-                    ->with(['course.department', 'assignments.teacher'])
-                    ->get();
-            }
+                    ->whereHas('timetable', fn($q) => $q->where('status', 'active'))
+                    ->count()
+                : 0;
 
             $department = $studentRecord && $studentRecord->department
                 ? $studentRecord->department->name
@@ -376,11 +308,207 @@ class DashboardController extends Controller
 
             return view('student.dashboard', compact(
                 'courseCount', 'classesPerWeek', 'teacherCount', 'totalCredits',
-                'enrolledCourses', 'todaySchedule', 'weeklySchedule',
-                'availableSections', 'department', 'semester', 'feePaid', 'feeRecord'
+                'department', 'semester', 'feeRecord'
             ));
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to load dashboard data. Please try again.');
+        }
+    }
+
+    // ----------------------------------------------------------------
+    // Shared helper — loads the student base data needed across pages
+    // ----------------------------------------------------------------
+    private function getStudentBase()
+    {
+        $user          = Auth::user();
+        $studentRecord = Student::with('department')->where('user_id', $user->id)->first();
+        $studentId     = $studentRecord ? $studentRecord->id : null;
+
+        $enrolledSectionIds = $studentId
+            ? StudentCourseRegistration::where('student_id', $studentId)
+                ->where('status', 'enrolled')
+                ->pluck('course_section_id')
+            : collect();
+
+        $mapReg = function ($reg) {
+            $section = $reg->courseSection;
+            $course  = $section ? clone $section->course : null;
+            if ($course) {
+                $course->registrationId     = $reg->id;
+                $course->registrationStatus = $reg->status;
+                $course->sectionInfo        = $section;
+                $assignment = $section->assignments->first();
+                $course->teacherName = $assignment && $assignment->teacher ? $assignment->teacher->name : 'TBA';
+            }
+            return $course;
+        };
+
+        $currentYear = now()->year;
+        $feeRecord   = null;
+        $feePaid     = false;
+        if ($studentRecord) {
+            $feeRecord = FeePayment::where('student_id', $studentRecord->id)
+                ->where('semester', $studentRecord->semester)
+                ->where('year', $currentYear)
+                ->first();
+            $feePaid = $feeRecord && $feeRecord->status === 'paid';
+        }
+
+        return compact('studentRecord', 'studentId', 'enrolledSectionIds', 'mapReg', 'feeRecord', 'feePaid', 'currentYear');
+    }
+
+    public function studentRegisterCourses()
+    {
+        try {
+            $base = $this->getStudentBase();
+            extract($base);
+
+            $semester   = $studentRecord ? $studentRecord->semester : 'N/A';
+            $department = $studentRecord && $studentRecord->department ? $studentRecord->department->name : 'N/A';
+
+            $availableSections = collect();
+            if ($studentRecord && $feePaid) {
+                $availableSections = CourseSection::whereNotIn('id', $enrolledSectionIds->toArray())
+                    ->whereColumn('enrolled_students', '<', 'max_students')
+                    ->whereHas('course', function ($q) use ($studentRecord) {
+                        $q->where('department_id', $studentRecord->department_id)
+                          ->where(function ($q2) use ($studentRecord) {
+                              $q2->where('semester', $studentRecord->semester)
+                                 ->orWhereNull('semester');
+                          });
+                    })
+                    ->with(['course.department', 'assignments.teacher'])
+                    ->get();
+            }
+
+            return view('student.register-courses', compact('availableSections', 'feePaid', 'feeRecord', 'semester', 'department'));
+        } catch (\Exception $e) {
+            return back()->with('error', 'Failed to load page.');
+        }
+    }
+
+    public function studentMyCourses()
+    {
+        try {
+            $base = $this->getStudentBase();
+            extract($base);
+
+            $semester = $studentRecord ? $studentRecord->semester : 'N/A';
+
+            $enrolledCourses = $studentId
+                ? StudentCourseRegistration::where('student_id', $studentId)
+                    ->where('status', 'enrolled')
+                    ->with(['courseSection.course.department', 'courseSection.assignments.teacher'])
+                    ->get()->map($mapReg)->filter()->values()
+                : collect();
+
+            $completedHistory = $studentId
+                ? StudentCourseRegistration::where('student_id', $studentId)
+                    ->where('status', 'completed')
+                    ->with(['courseSection.course.department', 'courseSection.assignments.teacher'])
+                    ->get()->map($mapReg)->filter()
+                    ->groupBy(fn($c) => $c->semester ?? 0)->sortKeys()
+                : collect();
+
+            return view('student.my-courses', compact('enrolledCourses', 'completedHistory', 'semester'));
+        } catch (\Exception $e) {
+            return back()->with('error', 'Failed to load page.');
+        }
+    }
+
+    public function studentTimetable()
+    {
+        try {
+            $base = $this->getStudentBase();
+            extract($base);
+
+            $semester = $studentRecord ? $studentRecord->semester : 'N/A';
+
+            $weeklySchedule = $enrolledSectionIds->isNotEmpty()
+                ? TimetableSlot::whereIn('course_section_id', $enrolledSectionIds)
+                    ->whereHas('timetable', fn($q) => $q->where('status', 'active'))
+                    ->with(['courseSection.course', 'teacher', 'room'])
+                    ->get()
+                : collect();
+
+            return view('student.timetable', compact('weeklySchedule', 'semester'));
+        } catch (\Exception $e) {
+            return back()->with('error', 'Failed to load page.');
+        }
+    }
+
+    public function studentToday()
+    {
+        try {
+            $base = $this->getStudentBase();
+            extract($base);
+
+            $semester = $studentRecord ? $studentRecord->semester : 'N/A';
+            $today    = now()->format('l');
+
+            $allSlots = $enrolledSectionIds->isNotEmpty()
+                ? TimetableSlot::whereIn('course_section_id', $enrolledSectionIds)
+                    ->whereHas('timetable', fn($q) => $q->where('status', 'active'))
+                    ->with(['courseSection.course', 'teacher', 'room'])
+                    ->get()
+                : collect();
+
+            $todaySchedule = $allSlots->where('day_of_week', $today)->sortBy('start_time')->values();
+
+            return view('student.today', compact('todaySchedule', 'today', 'semester'));
+        } catch (\Exception $e) {
+            return back()->with('error', 'Failed to load page.');
+        }
+    }
+
+    public function studentFeePayment()
+    {
+        try {
+            $base = $this->getStudentBase();
+            extract($base);
+
+            $semester = $studentRecord ? $studentRecord->semester : 'N/A';
+
+            $enrolledCourses = $studentId
+                ? StudentCourseRegistration::where('student_id', $studentId)
+                    ->where('status', 'enrolled')
+                    ->with(['courseSection.course.department', 'courseSection.assignments.teacher'])
+                    ->get()->map($mapReg)->filter()->values()
+                : collect();
+
+            // Auto-sync fee amount
+            if ($feeRecord && $feeRecord->status !== 'paid') {
+                $calculatedTotal = $enrolledCourses->sum(fn($c) => (float) ($c->fee ?? 0));
+                if ((float) $feeRecord->amount !== $calculatedTotal) {
+                    DB::table('fee_payments')->where('id', $feeRecord->id)->update(['amount' => $calculatedTotal]);
+                    $feeRecord->amount = $calculatedTotal;
+                }
+            }
+
+            return view('student.fee-payment', compact('feeRecord', 'feePaid', 'enrolledCourses', 'semester'));
+        } catch (\Exception $e) {
+            return back()->with('error', 'Failed to load page.');
+        }
+    }
+
+    public function studentProfile()
+    {
+        try {
+            $base = $this->getStudentBase();
+            extract($base);
+
+            $semester     = $studentRecord ? $studentRecord->semester : 'N/A';
+            $department   = $studentRecord && $studentRecord->department ? $studentRecord->department->name : 'N/A';
+            $totalCredits = $studentId
+                ? StudentCourseRegistration::where('student_id', $studentId)
+                    ->where('status', 'enrolled')
+                    ->with('courseSection.course')
+                    ->get()->sum(fn($r) => $r->courseSection->course->credits ?? 0)
+                : 0;
+
+            return view('student.profile', compact('semester', 'department', 'totalCredits', 'feeRecord', 'feePaid'));
+        } catch (\Exception $e) {
+            return back()->with('error', 'Failed to load page.');
         }
     }
 }
