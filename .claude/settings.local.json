@@ -8,7 +8,8 @@
       "Bash(php -l app/Http/Controllers/FeePaymentController.php)",
       "Bash(php -l app/Http/Controllers/StudentCourseRegistrationController.php)",
       "Bash(php -l app/Http/Controllers/CourseController.php)",
-      "Bash(php -l routes/web.php)"
+      "Bash(php -l routes/web.php)",
+      "Bash(grep -E \"\\\\.php$\")"
     ]
   }
 }

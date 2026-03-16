@@ -4,19 +4,19 @@
 </a>
 
 <div class="nav-section-title">Department</div>
-<a href="{{ route('hod.dashboard') }}#section-faculty" class="nav-link">
+<a href="{{ route('hod.faculty-members') }}" class="nav-link {{ request()->routeIs('hod.faculty-members') ? 'active' : '' }}">
     <span class="icon">&#128100;</span> Faculty Members
 </a>
-<a href="{{ route('hod.dashboard') }}#section-courses" class="nav-link">
+<a href="{{ route('hod.courses') }}" class="nav-link {{ request()->routeIs('hod.courses') ? 'active' : '' }}">
     <span class="icon">&#128218;</span> Courses
 </a>
-<a href="{{ route('hod.dashboard') }}#section-assignments" class="nav-link">
+<a href="{{ route('hod.assignments') }}" class="nav-link {{ request()->routeIs('hod.assignments') ? 'active' : '' }}">
     <span class="icon">&#128221;</span> Course Assignments
 </a>
 <a href="{{ route('hod.assign-course') }}" class="nav-link {{ request()->routeIs('hod.assign-course') ? 'active' : '' }}">
     <span class="icon">&#128196;</span> Assign Course
 </a>
-<a href="{{ route('hod.dashboard') }}#section-conflicts" class="nav-link">
+<a href="{{ route('hod.conflicts') }}" class="nav-link {{ request()->routeIs('hod.conflicts') ? 'active' : '' }}">
     <span class="icon">&#9888;</span> Conflicts
 </a>
 
@@ -27,7 +27,7 @@
 <a href="{{ route('hod.view-timetable') }}" class="nav-link {{ request()->routeIs('hod.view-timetable') ? 'active' : '' }}">
     <span class="icon">&#128197;</span> View Timetable
 </a>
-<a href="{{ route('hod.dashboard') }}#section-timetable" class="nav-link">
+<a href="{{ route('hod.department-timetable') }}" class="nav-link {{ request()->routeIs('hod.department-timetable') ? 'active' : '' }}">
     <span class="icon">&#128197;</span> Department Timetable
 </a>
 <a href="{{ route('hod.approve-schedule') }}" class="nav-link {{ request()->routeIs('hod.approve-schedule') ? 'active' : '' }}">
@@ -38,6 +38,6 @@
 <a href="{{ route('hod.faculty-workload') }}" class="nav-link {{ request()->routeIs('hod.faculty-workload') ? 'active' : '' }}">
     <span class="icon">&#128202;</span> Faculty Workload
 </a>
-<a href="#" class="nav-link">
+<a href="{{ route('hod.department-report') }}" class="nav-link {{ request()->routeIs('hod.department-report') ? 'active' : '' }}">
     <span class="icon">&#128196;</span> Department Report
 </a>

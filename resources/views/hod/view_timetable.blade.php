@@ -127,11 +127,11 @@ table.tt td.time-col { background:#f8fafc; color:#64748b; font-weight:600; font-
         @php
             $days = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
             $times = [
-                ['label' => '08:00 - 09:30', 'start' => '08:00'],
-                ['label' => '09:30 - 11:00', 'start' => '09:30'],
-                ['label' => '11:00 - 12:30', 'start' => '11:00'],
-                ['label' => '13:00 - 14:30', 'start' => '13:00'],
-                ['label' => '14:30 - 16:00', 'start' => '14:30'],
+                ['label' => '08:00 – 09:30', 'start' => '08:00'],
+                ['label' => '09:40 – 11:10', 'start' => '09:40'],
+                ['label' => '11:20 – 12:50', 'start' => '11:20'],
+                ['label' => '13:50 – 15:20', 'start' => '13:50'],
+                ['label' => '15:30 – 17:00', 'start' => '15:30'],
             ];
         @endphp
 
