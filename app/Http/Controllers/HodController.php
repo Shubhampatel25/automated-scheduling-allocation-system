@@ -25,8 +25,9 @@ class HodController extends Controller
             ))
             ->paginate(10)
             ->withQueryString();
-        $departments = Department::all();
-        return view('admin.hods.index', compact('hods', 'departments'));
+        $departments        = Department::all();
+        $assignedDeptIds    = Hod::pluck('department_id')->toArray();
+        return view('admin.hods.index', compact('hods', 'departments', 'assignedDeptIds'));
     }
 
     public function store(Request $request)
@@ -34,8 +35,10 @@ class HodController extends Controller
         $request->validate([
             'name'          => 'required|string|max:255',
             'email'         => 'required|email|unique:users,email',
-            'department_id' => 'required|exists:departments,id',
+            'department_id' => 'required|exists:departments,id|unique:hods,department_id',
             'status'        => 'required|in:active,inactive',
+        ], [
+            'department_id.unique' => 'This department already has an HOD assigned.',
         ]);
 
         $user = User::create([
@@ -76,8 +79,10 @@ class HodController extends Controller
         $request->validate([
             'name'          => 'required|string|max:255',
             'email'         => 'required|email|unique:users,email,' . $hod->user_id,
-            'department_id' => 'required|exists:departments,id',
+            'department_id' => 'required|exists:departments,id|unique:hods,department_id,' . $hod->id,
             'status'        => 'required|in:active,inactive',
+        ], [
+            'department_id.unique' => 'This department already has an HOD assigned.',
         ]);
 
         if ($hod->user) {

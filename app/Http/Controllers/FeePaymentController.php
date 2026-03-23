@@ -74,7 +74,7 @@ class FeePaymentController extends Controller
     public function generatePending()
     {
         $currentYear = now()->year;
-        $students    = Student::with('feePayments')->where('status', 'active')->get();
+        $students    = Student::with(['feePayments', 'department'])->where('status', 'active')->get();
         $generated   = 0;
 
         foreach ($students as $student) {
@@ -84,12 +84,16 @@ class FeePaymentController extends Controller
                 ->isNotEmpty();
 
             if (!$hasFee) {
-                // Calculate fee from enrolled courses
-                $totalFee = StudentCourseRegistration::where('student_id', $student->id)
-                    ->where('status', 'enrolled')
-                    ->with('courseSection.course')
-                    ->get()
-                    ->sum(fn($reg) => $reg->courseSection->course->fee ?? 0);
+                // Use department registration fee if set, otherwise fall back to enrolled course fees
+                $deptFee = $student->department->registration_fee ?? null;
+
+                $totalFee = $deptFee !== null
+                    ? (float) $deptFee
+                    : StudentCourseRegistration::where('student_id', $student->id)
+                        ->where('status', 'enrolled')
+                        ->with('courseSection.course')
+                        ->get()
+                        ->sum(fn($reg) => $reg->courseSection->course->fee ?? 0);
 
                 DB::table('fee_payments')->insert([
                     'student_id' => $student->id,

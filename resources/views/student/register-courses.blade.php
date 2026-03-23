@@ -40,7 +40,7 @@
 <div class="dashboard-card">
     <div class="card-header">
         <h3>Register for Courses &mdash; Semester {{ $semester }}</h3>
-        <span class="badge badge-primary">{{ $availableSections->count() }} Available</span>
+        <span class="badge badge-primary">{{ $upcomingTerm }} {{ $upcomingYear }} &nbsp;&bull;&nbsp; {{ $availableSections->count() }} Available</span>
     </div>
     <div class="card-body">
 

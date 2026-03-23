@@ -35,16 +35,18 @@ class DepartmentController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'code'        => 'required|string|max:20|unique:departments,code',
-            'name'        => 'required|string|max:255',
-            'description' => 'nullable|string|max:500',
+            'code'             => 'required|string|max:20|unique:departments,code',
+            'name'             => 'required|string|max:255',
+            'description'      => 'nullable|string|max:500',
+            'registration_fee' => 'nullable|numeric|min:0|max:99999',
         ]);
 
         Department::create([
-            'code'        => strtoupper($request->code),
-            'name'        => $request->name,
-            'description' => $request->description,
-            'created_at'  => now(),
+            'code'             => strtoupper($request->code),
+            'name'             => $request->name,
+            'description'      => $request->description,
+            'registration_fee' => $request->registration_fee ?: null,
+            'created_at'       => now(),
         ]);
 
         return redirect()->route('admin.departments.index')
@@ -54,15 +56,17 @@ class DepartmentController extends Controller
     public function update(Request $request, Department $department)
     {
         $request->validate([
-            'code'        => 'required|string|max:20|unique:departments,code,' . $department->id,
-            'name'        => 'required|string|max:255',
-            'description' => 'nullable|string|max:500',
+            'code'             => 'required|string|max:20|unique:departments,code,' . $department->id,
+            'name'             => 'required|string|max:255',
+            'description'      => 'nullable|string|max:500',
+            'registration_fee' => 'nullable|numeric|min:0|max:99999',
         ]);
 
         $department->update([
-            'code'        => strtoupper($request->code),
-            'name'        => $request->name,
-            'description' => $request->description,
+            'code'             => strtoupper($request->code),
+            'name'             => $request->name,
+            'description'      => $request->description,
+            'registration_fee' => $request->registration_fee ?: null,
         ]);
 
         return redirect()->route('admin.departments.index')

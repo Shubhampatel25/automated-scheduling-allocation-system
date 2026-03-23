@@ -73,7 +73,17 @@
                     @if($feeRecord->paid_at) Paid on {{ \Carbon\Carbon::parse($feeRecord->paid_at)->format('M d, Y') }}. @endif
                 </div>
             </div>
-            @if($enrolledCourses->count() > 0)
+            @if($deptFee !== null)
+            <table class="data-table" style="margin-top:14px;">
+                <thead><tr><th>Description</th><th style="text-align:right">Amount</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td>Semester {{ $semester }} Registration Fee</td>
+                        <td style="text-align:right;color:#065f46;font-weight:600;">${{ number_format($feeRecord->amount, 2) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+            @elseif($enrolledCourses->count() > 0)
             <table class="data-table" style="margin-top:14px;">
                 <thead>
                     <tr><th>Course</th><th>Code</th><th>Credits</th><th style="text-align:right">Fee</th></tr>
@@ -137,7 +147,20 @@
                 </div>
                 @endif
 
-                @if($enrolledCourses->count() > 0)
+                @if($deptFee !== null)
+                <div>
+                    <div style="font-size:0.8rem;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Fee Details</div>
+                    <table class="data-table" style="font-size:0.875rem;">
+                        <thead><tr><th>Description</th><th style="text-align:right">Amount</th></tr></thead>
+                        <tbody>
+                            <tr>
+                                <td>Semester {{ $semester }} Registration Fee</td>
+                                <td style="text-align:right;font-weight:600;color:#dc2626;">${{ number_format($feeRecord->amount, 2) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                @elseif($enrolledCourses->count() > 0)
                 <div>
                     <div style="font-size:0.8rem;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Fee Breakdown</div>
                     <table class="data-table" style="font-size:0.875rem;">

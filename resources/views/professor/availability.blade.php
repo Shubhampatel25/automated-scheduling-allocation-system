@@ -235,7 +235,7 @@
                     </label>
                     <div class="day-picker">
                         @php
-                            $days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+                            $days = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
                             $oldDays = old('days', []);
                         @endphp
                         @foreach($days as $day)

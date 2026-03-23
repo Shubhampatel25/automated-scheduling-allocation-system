@@ -160,7 +160,7 @@ class TimetableController extends Controller
                 ]);
 
                 // ── Step 5: Get usable rooms ────────────────────────────────────
-                $rooms = Room::whereIn('status', ['active', 'available'])
+                $rooms = Room::where('status', 'available')
                     ->orderBy('capacity', 'desc')
                     ->get();
 
@@ -324,13 +324,13 @@ class TimetableController extends Controller
 
     private function roomMatchesCourseType(string $roomType, string $component, string $courseType): bool
     {
-        // Lab component → lab or hybrid room
+        // Lab component → lab only
         if ($component === 'lab') {
-            return in_array($roomType, ['lab', 'hybrid']);
+            return $roomType === 'lab';
         }
 
-        // Theory component → lecture, classroom, seminar, seminar_hall, or hybrid
-        return in_array($roomType, ['lecture', 'classroom', 'seminar', 'seminar_hall', 'hybrid']);
+        // Theory component → classroom or seminar_hall
+        return in_array($roomType, ['classroom', 'seminar_hall']);
     }
 
     // ── Availability builders ───────────────────────────────────────────────────
@@ -358,7 +358,7 @@ class TimetableController extends Controller
     {
         $roomIds        = $rooms->pluck('id');
         $availabilities = RoomAvailability::whereIn('room_id', $roomIds)
-            ->whereIn('status', ['active', 'available'])
+            ->where('status', 'available')
             ->get();
 
         $lookup = [];

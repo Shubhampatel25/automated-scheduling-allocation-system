@@ -13,7 +13,7 @@ class TeacherAvailabilityController extends Controller
     {
         $request->validate([
             'days'               => 'required|array|min:1',
-            'days.*'             => 'in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday',
+            'days.*'             => 'in:Monday,Tuesday,Wednesday,Thursday,Friday',
             'start_time'         => 'required|date_format:H:i',
             'end_time'           => 'required|date_format:H:i|after:start_time',
             'max_hours_per_week' => 'nullable|integer|min:1|max:40',
@@ -27,7 +27,7 @@ class TeacherAvailabilityController extends Controller
             return back()->with('error', 'Teacher record not found.');
         }
 
-        $term = now()->month <= 6 ? 'spring' : 'fall';
+        $term = now()->month <= 4 ? 'Winter' : (now()->month <= 8 ? 'Summer' : 'Fall');
         $year = now()->year;
 
         foreach ($request->days as $day) {

@@ -16,6 +16,7 @@ use App\Http\Controllers\StudentCourseRegistrationController;
 use App\Http\Controllers\FeePaymentController;
 use App\Http\Controllers\HodPagesController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\ExcelImportController;
 
 /*
 |--------------------------------------------------------------------------
@@ -95,6 +96,14 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
 
     // Course Registrations
     Route::post('/registrations/{registration}/complete', [StudentCourseRegistrationController::class, 'complete'])->name('admin.registrations.complete');
+
+    // Excel Import
+    Route::get('/excel-import',         [ExcelImportController::class, 'index'])->name('admin.excel-import.index');
+    Route::post('/excel-import',        [ExcelImportController::class, 'import'])->name('admin.excel-import.store');
+    Route::post('/excel-import/diagnose',   [ExcelImportController::class, 'diagnose'])->name('admin.excel-import.diagnose');
+    Route::post('/excel-import/debug-rows', [ExcelImportController::class, 'debugRows'])->name('admin.excel-import.debug-rows');
+    Route::get('/excel-import/counts',    [ExcelImportController::class, 'counts'])->name('admin.excel-import.counts');
+    Route::post('/excel-import/truncate', [ExcelImportController::class, 'truncate'])->name('admin.excel-import.truncate');
 
     // Scheduling & System pages
     Route::get('/schedule',  [DashboardController::class, 'schedule'])->name('admin.schedule');

@@ -45,6 +45,7 @@
                 <tr>
                     <th>Code</th>
                     <th>Department Name</th>
+                    <th>Reg. Fee</th>
                     <th>Teachers</th>
                     <th>Courses</th>
                     <th>Students</th>
@@ -56,11 +57,18 @@
                 <tr>
                     <td>{{ $dept->code }}</td>
                     <td>{{ $dept->name }}</td>
+                    <td>
+                        @if($dept->registration_fee !== null)
+                            <span style="font-weight:600;color:#065f46;">${{ number_format($dept->registration_fee, 2) }}</span>
+                        @else
+                            <span style="color:#9ca3af;">—</span>
+                        @endif
+                    </td>
                     <td>{{ $dept->teachers_count }}</td>
                     <td>{{ $dept->courses_count }}</td>
                     <td>{{ $dept->students_count }}</td>
                     <td>
-                        <button class="link-edit" onclick="editDept({{ $dept->id }}, '{{ $dept->code }}', '{{ addslashes($dept->name) }}', '{{ addslashes($dept->description ?? '') }}')">Edit</button>
+                        <button class="link-edit" onclick="editDept({{ $dept->id }}, '{{ $dept->code }}', '{{ addslashes($dept->name) }}', '{{ addslashes($dept->description ?? '') }}', '{{ $dept->registration_fee ?? '' }}')">Edit</button>
                         <span class="sep"> | </span>
                         <form method="POST" action="{{ route('admin.departments.destroy', $dept->id) }}" style="display:inline" onsubmit="return confirm('Delete this department? This may affect teachers, courses and students linked to it.')">
                             @csrf @method('DELETE')
@@ -69,7 +77,7 @@
                     </td>
                 </tr>
                 @empty
-                <tr><td colspan="6" style="text-align:center;padding:24px;color:#9ca3af">No departments found.</td></tr>
+                <tr><td colspan="7" style="text-align:center;padding:24px;color:#9ca3af">No departments found.</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -107,6 +115,10 @@
                 <label>Description <span style="color:#9ca3af;font-weight:400">(optional)</span></label>
                 <textarea name="description" id="fDesc" placeholder="Brief description">{{ old('description') }}</textarea>
             </div>
+            <div class="field-group">
+                <label>Registration Fee <span style="color:#9ca3af;font-weight:400">(optional — $ per semester)</span></label>
+                <input type="number" name="registration_fee" id="fFee" value="{{ old('registration_fee') }}" placeholder="e.g. 500.00" step="0.01" min="0">
+            </div>
             <button type="submit" class="btn-submit">+ Save</button>
         </form>
     </div>
@@ -128,12 +140,13 @@ function closeModal() {
     document.getElementById('modalBackdrop').classList.remove('show');
 }
 
-function editDept(id, code, name, desc) {
+function editDept(id, code, name, desc, fee) {
     document.getElementById('deptForm').action  = `/admin/departments/${id}`;
     document.getElementById('formMethod').value = 'PUT';
     document.getElementById('fCode').value      = code;
     document.getElementById('fName').value      = name;
     document.getElementById('fDesc').value      = desc;
+    document.getElementById('fFee').value       = fee;
     document.getElementById('modalBackdrop').classList.add('show');
 }
 

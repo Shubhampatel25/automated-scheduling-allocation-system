@@ -15,6 +15,7 @@ class Department extends Model
         'code',
         'name',
         'description',
+        'registration_fee',
         'created_at',
     ];
 
