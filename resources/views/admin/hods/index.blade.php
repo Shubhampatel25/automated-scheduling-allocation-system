@@ -112,11 +112,14 @@
                 <select name="department_id" id="fDept" required>
                     <option value="">Select Department</option>
                     @foreach($departments as $dept)
-                        <option value="{{ $dept->id }}" {{ old('department_id') == $dept->id ? 'selected' : '' }}>
-                            {{ $dept->name }}
+                        <option value="{{ $dept->id }}"
+                            data-assigned="{{ in_array($dept->id, $assignedDeptIds) ? '1' : '0' }}"
+                            {{ old('department_id') == $dept->id ? 'selected' : '' }}>
+                            {{ $dept->name }}{{ in_array($dept->id, $assignedDeptIds) ? ' (HOD assigned)' : '' }}
                         </option>
                     @endforeach
                 </select>
+                <p id="fDeptNote" style="display:none;margin:4px 0 0;font-size:.78rem;color:#ef4444;">This department already has an HOD assigned.</p>
             </div>
             <div class="field-group">
                 <label>Status</label>
@@ -135,10 +138,29 @@
 <script>
 const storeUrl = "{{ route('admin.hods.store') }}";
 
+function filterDeptOptions(currentDeptId) {
+    // currentDeptId: the HOD's own dept (always visible), or null for Add mode
+    const sel  = document.getElementById('fDept');
+    const note = document.getElementById('fDeptNote');
+    Array.from(sel.options).forEach(opt => {
+        if (!opt.value) return; // keep the blank placeholder
+        const assigned = opt.dataset.assigned === '1';
+        const isOwn    = opt.value == currentDeptId;
+        opt.hidden    = assigned && !isOwn;
+        opt.disabled  = assigned && !isOwn;
+    });
+    note.style.display = 'none';
+    sel.addEventListener('change', function() {
+        const chosen = this.options[this.selectedIndex];
+        note.style.display = (chosen && chosen.dataset.assigned === '1' && chosen.value != currentDeptId) ? '' : 'none';
+    });
+}
+
 function openModal() {
     document.getElementById('hodForm').action = storeUrl;
     document.getElementById('formMethod').value = 'POST';
     document.getElementById('hodForm').reset();
+    filterDeptOptions(null);
     document.getElementById('modalBackdrop').classList.add('show');
 }
 
@@ -153,6 +175,7 @@ function editHod(id, name, email, deptId, status) {
     document.getElementById('fEmail').value     = email;
     document.getElementById('fDept').value      = deptId;
     document.getElementById('fStatus').value    = status;
+    filterDeptOptions(deptId);
     document.getElementById('modalBackdrop').classList.add('show');
 }
 

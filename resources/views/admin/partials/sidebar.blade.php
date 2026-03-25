@@ -35,6 +35,9 @@
 </a>
 
 <div class="nav-section-title">System</div>
+<a href="{{ route('admin.excel-import.index') }}" class="nav-link {{ request()->routeIs('admin.excel-import.*') ? 'active' : '' }}">
+    <span class="icon">&#128196;</span> Excel Import
+</a>
 <a href="{{ route('admin.activity') }}" class="nav-link {{ request()->routeIs('admin.activity') ? 'active' : '' }}">
-    <span class="icon">&#128196;</span> Activity Logs
+    <span class="icon">&#128203;</span> Activity Logs
 </a>

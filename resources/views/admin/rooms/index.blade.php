@@ -65,7 +65,7 @@
                     <td>{{ $room->capacity }}</td>
                     <td>{{ $room->equipment ?? '—' }}</td>
                     <td>
-                        <span class="status {{ $room->status === 'active' ? 'status-active' : 'status-inactive' }}">
+                        <span class="status {{ $room->status === 'available' ? 'status-active' : 'status-inactive' }}">
                             {{ ucfirst($room->status) }}
                         </span>
                     </td>
@@ -138,8 +138,9 @@
             <div class="field-group">
                 <label>Status</label>
                 <select name="status" id="fStatus" required>
-                    <option value="active"   {{ old('status', 'active') === 'active'   ? 'selected' : '' }}>Active</option>
-                    <option value="inactive" {{ old('status') === 'inactive' ? 'selected' : '' }}>Inactive</option>
+                    <option value="available"    {{ old('status', 'available') === 'available'    ? 'selected' : '' }}>Available</option>
+                    <option value="unavailable"  {{ old('status') === 'unavailable'  ? 'selected' : '' }}>Unavailable</option>
+                    <option value="maintenance"  {{ old('status') === 'maintenance'  ? 'selected' : '' }}>Maintenance</option>
                 </select>
             </div>
             <button type="submit" class="btn-submit">+ Save</button>

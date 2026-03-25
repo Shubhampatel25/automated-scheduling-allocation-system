@@ -366,12 +366,58 @@ class DashboardController extends Controller
             $semester   = $studentRecord ? $studentRecord->semester : 'N/A';
             $department = $studentRecord && $studentRecord->department ? $studentRecord->department->name : 'N/A';
 
+            // Term ordering: Winter=1, Summer=2, Fall=3
+            $termPriority = ['Winter' => 1, 'Summer' => 2, 'Fall' => 3];
+
+            // Compute the calendar-based upcoming term
+            $month = now()->month;
+            if ($month <= 4) {
+                $calTerm = 'Summer'; $calYear = now()->year;
+            } elseif ($month <= 8) {
+                $calTerm = 'Fall';   $calYear = now()->year;
+            } else {
+                $calTerm = 'Winter'; $calYear = now()->year + 1;
+            }
+
+            $upcomingTerm = $calTerm;
+            $upcomingYear = $calYear;
+
             $availableSections = collect();
             if ($studentRecord && $feePaid) {
+                // Find the nearest (term, year) that actually has sections for this student
+                $calTermPriority = $termPriority[$calTerm] ?? 1;
+
+                $distinctTerms = CourseSection::whereHas('course', function ($q) use ($studentRecord) {
+                        $q->where('department_id', $studentRecord->department_id)
+                          ->where('status', 'active')
+                          ->where(function ($q2) use ($studentRecord) {
+                              $q2->where('semester', $studentRecord->semester)
+                                 ->orWhereNull('semester');
+                          });
+                    })
+                    ->selectRaw('term, year')
+                    ->distinct()
+                    ->get()
+                    ->sortBy(fn($r) => $r->year * 10 + ($termPriority[$r->term] ?? 0));
+
+                // Prefer nearest future term; fall back to most recent available
+                $nearest = $distinctTerms->first(function ($r) use ($calYear, $calTermPriority, $termPriority) {
+                    $rp = $termPriority[$r->term] ?? 0;
+                    return $r->year > $calYear || ($r->year == $calYear && $rp >= $calTermPriority);
+                }) ?? $distinctTerms->last();
+
+                if ($nearest) {
+                    $upcomingTerm = $nearest->term;
+                    $upcomingYear = $nearest->year;
+                }
+
                 $availableSections = CourseSection::whereNotIn('id', $enrolledSectionIds->toArray())
+                    ->where('term', $upcomingTerm)
+                    ->where('year', $upcomingYear)
                     ->whereColumn('enrolled_students', '<', 'max_students')
                     ->whereHas('course', function ($q) use ($studentRecord) {
                         $q->where('department_id', $studentRecord->department_id)
+                          ->where('status', 'active')
                           ->where(function ($q2) use ($studentRecord) {
                               $q2->where('semester', $studentRecord->semester)
                                  ->orWhereNull('semester');
@@ -381,7 +427,7 @@ class DashboardController extends Controller
                     ->get();
             }
 
-            return view('student.register-courses', compact('availableSections', 'feePaid', 'feeRecord', 'semester', 'department'));
+            return view('student.register-courses', compact('availableSections', 'feePaid', 'feeRecord', 'semester', 'department', 'upcomingTerm', 'upcomingYear'));
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to load page.');
         }
@@ -476,16 +522,37 @@ class DashboardController extends Controller
                     ->get()->map($mapReg)->filter()->values()
                 : collect();
 
-            // Auto-sync fee amount
-            if ($feeRecord && $feeRecord->status !== 'paid') {
-                $calculatedTotal = $enrolledCourses->sum(fn($c) => (float) ($c->fee ?? 0));
-                if ((float) $feeRecord->amount !== $calculatedTotal) {
+            // Auto-sync fee amount — prefer department registration fee if set
+            $deptFee = $studentRecord && $studentRecord->department
+                ? $studentRecord->department->registration_fee
+                : null;
+
+            if ($studentRecord) {
+                $calculatedTotal = $deptFee !== null
+                    ? (float) $deptFee
+                    : $enrolledCourses->sum(fn($c) => (float) ($c->fee ?? 0));
+
+                if (!$feeRecord) {
+                    // Auto-create pending fee record if none exists
+                    $newId = DB::table('fee_payments')->insertGetId([
+                        'student_id' => $studentId,
+                        'semester'   => $studentRecord->semester,
+                        'year'       => $currentYear,
+                        'amount'     => $calculatedTotal,
+                        'status'     => 'pending',
+                        'paid_at'    => null,
+                        'created_at' => DB::raw('NOW()'),
+                    ]);
+                    $feeRecord = FeePayment::find($newId);
+                    $feePaid   = false;
+                } elseif ($feeRecord->status !== 'paid' && (float) $feeRecord->amount !== $calculatedTotal) {
+                    // Update amount if it changed
                     DB::table('fee_payments')->where('id', $feeRecord->id)->update(['amount' => $calculatedTotal]);
                     $feeRecord->amount = $calculatedTotal;
                 }
             }
 
-            return view('student.fee-payment', compact('feeRecord', 'feePaid', 'enrolledCourses', 'semester'));
+            return view('student.fee-payment', compact('feeRecord', 'feePaid', 'enrolledCourses', 'semester', 'deptFee'));
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to load page.');
         }

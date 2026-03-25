@@ -29,7 +29,7 @@ class RoomController extends Controller
             'type'        => 'required|in:classroom,lab,seminar_hall',
             'capacity'    => 'required|integer|min:1|max:500',
             'equipment'   => 'nullable|string|max:255',
-            'status'      => 'required|in:active,inactive',
+            'status'      => 'required|in:available,unavailable,maintenance',
         ]);
 
         Room::create([
@@ -54,7 +54,7 @@ class RoomController extends Controller
             'type'        => 'required|in:classroom,lab,seminar_hall',
             'capacity'    => 'required|integer|min:1|max:500',
             'equipment'   => 'nullable|string|max:255',
-            'status'      => 'required|in:active,inactive',
+            'status'      => 'required|in:available,unavailable,maintenance',
         ]);
 
         $room->update([
