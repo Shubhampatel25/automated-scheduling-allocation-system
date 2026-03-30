@@ -19,12 +19,10 @@ class Conflict extends Model
         'slot_id_2',
         'status',
         'detected_at',
-        'resolved_at',
     ];
 
     protected $casts = [
         'detected_at' => 'datetime',
-        'resolved_at' => 'datetime',
     ];
 
     public function timetable()
