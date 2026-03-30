@@ -123,7 +123,6 @@
                 <option value="all">All Types</option>
                 <option value="room">Room Overlap</option>
                 <option value="teacher">Teacher Overlap</option>
-                <option value="student">Student Overlap</option>
             </select>
         </div>
         <div class="filter-group">

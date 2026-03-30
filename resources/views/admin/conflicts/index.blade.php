@@ -124,7 +124,6 @@
                         <option value="">All Types</option>
                         <option value="room_conflict"    {{ request('type') === 'room_conflict'    ? 'selected' : '' }}>Room Conflict</option>
                         <option value="teacher_conflict" {{ request('type') === 'teacher_conflict' ? 'selected' : '' }}>Teacher Conflict</option>
-                        <option value="time_conflict"    {{ request('type') === 'time_conflict'    ? 'selected' : '' }}>Time Conflict</option>
                     </select>
                 </div>
                 <div class="field-group">
