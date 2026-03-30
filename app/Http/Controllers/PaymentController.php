@@ -39,9 +39,10 @@ class PaymentController extends Controller
             ? (float) $feePayment->amount
             : (float) $request->paid_amount;
 
-        if ($paymentType === 'partial' && $amount >= (float) $feePayment->amount) {
+        $remaining = (float) $feePayment->amount - (float) ($feePayment->paid_amount ?? 0);
+        if ($paymentType === 'partial' && $amount >= $remaining) {
             return redirect()->route('student.fee-payment')
-                ->with('error', 'For full payment please use the "Pay in Full" button.');
+                ->with('error', 'Amount entered covers the full balance. Please use the "Pay in Full" button instead.');
         }
 
         Stripe::setApiKey(config('services.stripe.secret'));
@@ -119,28 +120,49 @@ class PaymentController extends Controller
                 ->with('success', 'Your fee has already been recorded as paid.');
         }
 
+        $totalAmount    = (float) $feePayment->amount;
+        $alreadyPaid    = (float) ($feePayment->paid_amount ?? 0);
+
         if ($paymentType === 'full') {
             DB::table('fee_payments')
                 ->where('id', $feePayment->id)
                 ->update([
                     'status'      => 'paid',
-                    'paid_amount' => $feePayment->amount,
+                    'paid_amount' => $totalAmount,
                     'paid_at'     => DB::raw('NOW()'),
                 ]);
 
             return redirect()->route('student.dashboard')
-                ->with('success', 'Payment of $' . number_format($feePayment->amount, 2) . ' received via Stripe! You can now register for courses.');
+                ->with('success', 'Payment of $' . number_format($totalAmount, 2) . ' received via Stripe! You can now register for courses.');
+        }
+
+        // Partial payment — ADD to any previous payments
+        $newTotal = $alreadyPaid + $paidAmount;
+
+        if ($newTotal >= $totalAmount) {
+            // Accumulated payments now cover the full amount — mark fully paid
+            DB::table('fee_payments')
+                ->where('id', $feePayment->id)
+                ->update([
+                    'status'      => 'paid',
+                    'paid_amount' => $totalAmount,
+                    'paid_at'     => DB::raw('NOW()'),
+                ]);
+
+            return redirect()->route('student.dashboard')
+                ->with('success', 'Payment complete! Total $' . number_format($totalAmount, 2) . ' received. You can now register for courses.');
         }
 
         DB::table('fee_payments')
             ->where('id', $feePayment->id)
             ->update([
                 'status'      => 'partial',
-                'paid_amount' => $paidAmount,
+                'paid_amount' => $newTotal,
                 'paid_at'     => DB::raw('NOW()'),
             ]);
 
-        return redirect()->route('student.dashboard')
-            ->with('success', 'Partial payment of $' . number_format($paidAmount, 2) . ' received via Stripe. Full payment is required to register for courses.');
+        $remaining = $totalAmount - $newTotal;
+        return redirect()->route('student.fee-payment')
+            ->with('success', 'Partial payment of $' . number_format($paidAmount, 2) . ' received. Remaining balance: $' . number_format($remaining, 2) . '. Full payment is required to register for courses.');
     }
 }

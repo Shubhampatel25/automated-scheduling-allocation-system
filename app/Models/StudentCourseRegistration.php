@@ -17,6 +17,7 @@ class StudentCourseRegistration extends Model
         'student_id',
         'course_section_id',
         'status',
+        'result',
         'registered_at',
     ];
 

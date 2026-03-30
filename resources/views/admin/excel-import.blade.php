@@ -284,7 +284,7 @@
                     <tr><td>name</td><td><span class="badge-req">Required</span></td><td>Course name.</td></tr>
                     <tr><td>department_code</td><td><span class="badge-req">Required</span></td><td>Must match an existing department code.</td></tr>
                     <tr><td>credits</td><td><span class="badge-req">Required</span></td><td>Integer 1–6.</td></tr>
-                    <tr><td>type</td><td><span class="badge-req">Required</span></td><td><code>theory</code> | <code>lab</code> | <code>hybrid</code></td></tr>
+                    <tr><td>type</td><td><span class="badge-req">Required</span></td><td><code>theory</code> | <code>lab</code> | <code>lecture_lab</code></td></tr>
                     <tr><td>description</td><td><span class="badge-opt">Optional</span></td><td>Short description.</td></tr>
                     <tr><td>semester</td><td><span class="badge-opt">Optional</span></td><td>Integer 1–8.</td></tr>
                     <tr><td>fee</td><td><span class="badge-opt">Optional</span></td><td>Decimal. e.g. <em>500.00</em>.</td></tr>
@@ -300,7 +300,7 @@
                 <tbody>
                     <tr><td>course_code</td><td><span class="badge-req">Required</span></td><td>Must match an existing course code.</td></tr>
                     <tr><td>section_number</td><td><span class="badge-req">Required</span></td><td>Integer. e.g. <em>1</em>.</td></tr>
-                    <tr><td>term</td><td><span class="badge-req">Required</span></td><td>e.g. <em>Fall</em>, <em>Winter</em>, <em>Spring</em>.</td></tr>
+                    <tr><td>term</td><td><span class="badge-req">Required</span></td><td><code>Winter</code> | <code>Summer</code> | <code>Fall</code></td></tr>
                     <tr><td>year</td><td><span class="badge-req">Required</span></td><td>4-digit year. e.g. <em>2025</em>.</td></tr>
                     <tr><td>max_students</td><td><span class="badge-opt">Optional</span></td><td>Integer. Default: <em>30</em>.</td></tr>
                 </tbody>
@@ -337,7 +337,7 @@
                 <thead><tr><th>Column Header</th><th>Required</th><th>Notes</th></tr></thead>
                 <tbody>
                     <tr><td>teacher_employee_id</td><td><span class="badge-req">Required</span></td><td>Must match an existing teacher's employee ID.</td></tr>
-                    <tr><td>term</td><td><span class="badge-req">Required</span></td><td>e.g. <em>Fall</em>.</td></tr>
+                    <tr><td>term</td><td><span class="badge-req">Required</span></td><td><code>Winter</code> | <code>Summer</code> | <code>Fall</code></td></tr>
                     <tr><td>year</td><td><span class="badge-req">Required</span></td><td>4-digit year.</td></tr>
                     <tr><td>day_of_week</td><td><span class="badge-req">Required</span></td><td><code>Monday</code> | <code>Tuesday</code> | <code>Wednesday</code> | <code>Thursday</code> | <code>Friday</code></td></tr>
                     <tr><td>start_time</td><td><span class="badge-req">Required</span></td><td>24-hr format. e.g. <em>08:00</em>.</td></tr>

@@ -13,6 +13,8 @@ class FeePayment extends Model
 
     protected $fillable = [
         'student_id',
+        'type',
+        'course_id',
         'semester',
         'year',
         'amount',
@@ -32,5 +34,10 @@ class FeePayment extends Model
     public function student()
     {
         return $this->belongsTo(Student::class);
+    }
+
+    public function course()
+    {
+        return $this->belongsTo(Course::class);
     }
 }

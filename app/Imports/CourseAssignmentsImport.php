@@ -19,9 +19,32 @@ class CourseAssignmentsImport implements ToModel, WithHeadingRow, SkipsOnError, 
 
     public function model(array $row)
     {
-        $row       = $this->normalize($row);
-        $sectionId = isset($row['course_section_id']) && $row['course_section_id'] !== '' ? (int)$row['course_section_id'] : null;
-        $teacherId = isset($row['teacher_id'])        && $row['teacher_id']        !== '' ? (int)$row['teacher_id']        : null;
+        $row = $this->normalize($row);
+
+        // Accept course_section_id (int) or course_code + section_number (lookup)
+        $sectionId = null;
+        if (!empty($row['course_section_id']) && is_numeric($row['course_section_id'])) {
+            $sectionId = (int) $row['course_section_id'];
+        } elseif (!empty($row['course_code'])) {
+            $courseId  = DB::table('courses')->where('code', strtoupper(trim((string)$row['course_code'])))->value('id');
+            $secNum    = isset($row['section_number']) && $row['section_number'] !== '' ? (int)$row['section_number'] : 1;
+            $term      = trim((string)($row['term'] ?? ''));
+            $year      = isset($row['year']) && $row['year'] !== '' ? (int)$row['year'] : now()->year;
+            if ($courseId) {
+                $q = DB::table('course_sections')->where('course_id', $courseId)->where('section_number', $secNum);
+                if ($term) $q->where('term', $term);
+                if ($year) $q->where('year', $year);
+                $sectionId = $q->value('id');
+            }
+        }
+
+        // Accept teacher_id (int) or teacher_employee_id (string lookup)
+        $teacherId = null;
+        if (!empty($row['teacher_id']) && is_numeric($row['teacher_id'])) {
+            $teacherId = (int) $row['teacher_id'];
+        } elseif (!empty($row['teacher_employee_id'])) {
+            $teacherId = DB::table('teachers')->where('employee_id', trim((string)$row['teacher_employee_id']))->value('id');
+        }
 
         if (empty($sectionId) || empty($teacherId)) { $this->skipped++; return null; }
 

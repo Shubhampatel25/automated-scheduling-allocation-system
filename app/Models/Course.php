@@ -16,6 +16,8 @@ class Course extends Model
         'name',
         'department_id',
         'semester',
+        'prerequisite_course_code',
+        'prerequisite_mandatory',
         'fee',
         'credits',
         'type',
@@ -25,7 +27,8 @@ class Course extends Model
     ];
 
     protected $casts = [
-        'created_at' => 'datetime',
+        'prerequisite_mandatory' => 'boolean',
+        'created_at'             => 'datetime',
     ];
 
     public function department()

@@ -19,8 +19,15 @@ class TeacherAvailabilityImport implements ToModel, WithHeadingRow, SkipsOnError
 
     public function model(array $row)
     {
-        $row       = $this->normalize($row);
-        $teacherId = isset($row['teacher_id']) && $row['teacher_id'] !== '' ? (int)$row['teacher_id'] : null;
+        $row = $this->normalize($row);
+
+        // Accept teacher_id (int) or teacher_employee_id (string lookup)
+        $teacherId = null;
+        if (!empty($row['teacher_id']) && is_numeric($row['teacher_id'])) {
+            $teacherId = (int) $row['teacher_id'];
+        } elseif (!empty($row['teacher_employee_id'])) {
+            $teacherId = DB::table('teachers')->where('employee_id', trim((string)$row['teacher_employee_id']))->value('id');
+        }
 
         if (empty($teacherId)) { $this->skipped++; return null; }
 

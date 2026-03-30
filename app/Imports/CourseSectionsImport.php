@@ -19,8 +19,15 @@ class CourseSectionsImport implements ToModel, WithHeadingRow, SkipsOnError, Ski
 
     public function model(array $row)
     {
-        $row      = $this->normalize($row);
-        $courseId = isset($row['course_id']) && $row['course_id'] !== '' ? (int)$row['course_id'] : null;
+        $row = $this->normalize($row);
+
+        // Accept course_id (int) or course_code (string lookup)
+        $courseId = null;
+        if (!empty($row['course_id']) && is_numeric($row['course_id'])) {
+            $courseId = (int) $row['course_id'];
+        } elseif (!empty($row['course_code'])) {
+            $courseId = DB::table('courses')->where('code', strtoupper(trim((string)$row['course_code'])))->value('id');
+        }
 
         if (empty($courseId)) { $this->skipped++; return null; }
 

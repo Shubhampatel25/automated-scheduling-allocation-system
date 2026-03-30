@@ -5,10 +5,10 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\Student;
-use App\Models\Course;
 use App\Models\CourseSection;
 use App\Models\FeePayment;
 use App\Models\StudentCourseRegistration;
+use App\Models\TimetableSlot;
 
 class StudentCourseRegistrationController extends Controller
 {
@@ -18,7 +18,7 @@ class StudentCourseRegistrationController extends Controller
             'course_section_id' => 'required|exists:course_sections,id',
         ]);
 
-        $user = auth()->user();
+        $user    = auth()->user();
         $student = Student::where('user_id', $user->id)->first();
 
         if (!$student) {
@@ -26,44 +26,145 @@ class StudentCourseRegistrationController extends Controller
         }
 
         $section = CourseSection::with('course')->findOrFail($request->course_section_id);
-        $course = $section->course;
+        $course  = $section->course;
 
-        // Check fee payment status
-        $feePaid = FeePayment::where('student_id', $student->id)
-            ->where('semester', $student->semester)
-            ->where('year', now()->year)
-            ->where('status', 'paid')
+        // ── 1. Department match ───────────────────────────────────────────────
+        if ($course->department_id !== $student->department_id) {
+            return back()->with('error', 'You can only enroll in courses from your own department.');
+        }
+
+        // ── 2. Already PASSED this course? Block — no need to re-enroll ─────
+        $alreadyPassed = StudentCourseRegistration::where('student_id', $student->id)
+            ->where('status', 'completed')
+            ->where('result', 'pass')
+            ->whereHas('courseSection', fn($q) => $q->where('course_id', $course->id))
             ->exists();
 
-        if (!$feePaid) {
-            return back()->with('error', 'You must complete fee payment for the current semester before registering for courses.');
+        if ($alreadyPassed) {
+            return back()->with('error',
+                'You have already passed "' . $course->name . '". Re-enrollment is not required.');
         }
 
-        // Check department match
-        if ($course->department_id !== $student->department_id) {
-            return back()->with('error', 'You can only enroll in courses from your department.');
-        }
-
-        // Check semester match (allow courses with null semester as electives)
-        if ($course->semester !== null && $course->semester !== $student->semester) {
-            return back()->with('error', 'This course is not available for your current semester.');
-        }
-
-        // Check already enrolled
-        $existing = StudentCourseRegistration::where('student_id', $student->id)
-            ->where('course_section_id', $section->id)
+        // ── 3. Already ENROLLED in another active section of this course? ────
+        $alreadyEnrolled = StudentCourseRegistration::where('student_id', $student->id)
             ->where('status', 'enrolled')
-            ->first();
+            ->whereHas('courseSection', fn($q) => $q->where('course_id', $course->id))
+            ->exists();
 
-        if ($existing) {
-            return back()->with('error', 'You are already enrolled in this course.');
+        if ($alreadyEnrolled) {
+            return back()->with('error',
+                'You are already enrolled in a section of "' . $course->name . '".');
         }
 
-        // Check capacity
+        // ── 4. Determine whether this is a retake ────────────────────────────
+        //    Retake = student has a completed FAIL record for this course.
+        $isRetake = StudentCourseRegistration::where('student_id', $student->id)
+            ->where('status', 'completed')
+            ->where('result', 'fail')
+            ->whereHas('courseSection', fn($q) => $q->where('course_id', $course->id))
+            ->exists();
+
+        // ── 5. Fee payment check ──────────────────────────────────────────────
+        if ($isRetake) {
+            // Retake path: supplemental fee required for this specific course
+            $supplementalFeePaid = FeePayment::where('student_id', $student->id)
+                ->where('type', 'supplemental')
+                ->where('course_id', $course->id)
+                ->where('status', 'paid')
+                ->exists();
+
+            if (!$supplementalFeePaid) {
+                return back()->with('error',
+                    'Supplemental fee required: Pay the retake fee for "' . $course->name
+                    . '" on the Fee Payment page before re-enrolling.');
+            }
+        } else {
+            // Regular enrollment path: semester fee must be paid
+            $regularFeePaid = FeePayment::where('student_id', $student->id)
+                ->where('type', 'regular')
+                ->where('semester', $student->semester)
+                ->where('year', now()->year)
+                ->where('status', 'paid')
+                ->exists();
+
+            if (!$regularFeePaid) {
+                return back()->with('error',
+                    'Fee payment required: Complete your Semester ' . $student->semester
+                    . ' fee payment before registering for courses.');
+            }
+        }
+
+        // ── 6. Semester match (regular enrollments only, not retakes) ────────
+        //    Retakes bypass this — a Sem1 course retaken by a Sem2 student is valid.
+        if (!$isRetake) {
+            if ($course->semester !== null && $course->semester !== $student->semester) {
+                return back()->with('error',
+                    'This course belongs to Semester ' . $course->semester
+                    . ' and is not available for your current semester (' . $student->semester . ').');
+            }
+        }
+
+        // ── 7. Prerequisite check — per course, not per semester ─────────────
+        //    Only checked for new (non-retake) enrollments.
+        //    Advisory prerequisites warn but do NOT block enrollment.
+        //    This allows students to progress to a new semester and retake failed
+        //    courses in parallel, even when some prerequisites are unmet.
+        if (!$isRetake && $course->prerequisite_course_code) {
+            $passedCourseCodes = StudentCourseRegistration::where('student_id', $student->id)
+                ->where('status', 'completed')
+                ->where('result', 'pass')
+                ->with('courseSection.course')
+                ->get()
+                ->map(fn($r) => optional($r->courseSection?->course)->code)
+                ->filter()->unique()->toArray();
+
+            if (!in_array($course->prerequisite_course_code, $passedCourseCodes)) {
+                if ($course->prerequisite_mandatory) {
+                    // Hard block: mandatory prerequisite not satisfied
+                    return back()->with('error',
+                        'Prerequisite not passed: You must pass "'
+                        . $course->prerequisite_course_code
+                        . '" before registering for "' . $course->name . '".');
+                }
+                // Advisory prerequisite not met — allow enrollment (UI already warned the student)
+            }
+        }
+
+        // ── 8. Capacity check ────────────────────────────────────────────────
         if ($section->enrolled_students >= $section->max_students) {
-            return back()->with('error', 'This course section is full.');
+            return back()->with('error',
+                'Section ' . $section->section_number . ' of "' . $course->name . '" is full. '
+                . 'Please choose a different section.');
         }
 
+        // ── 9. Schedule conflict check ───────────────────────────────────────
+        $newSlots = TimetableSlot::where('course_section_id', $section->id)->get();
+        if ($newSlots->isNotEmpty()) {
+            $currentSectionIds = StudentCourseRegistration::where('student_id', $student->id)
+                ->where('status', 'enrolled')
+                ->pluck('course_section_id');
+
+            if ($currentSectionIds->isNotEmpty()) {
+                foreach ($newSlots as $newSlot) {
+                    $conflicting = TimetableSlot::whereIn('course_section_id', $currentSectionIds)
+                        ->where('day_of_week', $newSlot->day_of_week)
+                        ->where('start_time', '<', $newSlot->end_time)
+                        ->where('end_time', '>', $newSlot->start_time)
+                        ->with('courseSection.course')
+                        ->first();
+
+                    if ($conflicting) {
+                        $conflictName = optional(optional($conflicting->courseSection)->course)->name
+                            ?? 'another enrolled course';
+                        return back()->with('error',
+                            'Schedule conflict on ' . $newSlot->day_of_week . ': this section overlaps with "'
+                            . $conflictName . '".');
+                    }
+                }
+            }
+        }
+
+        // ── 10. Enroll ───────────────────────────────────────────────────────
         DB::table('student_course_registrations')->insert([
             'student_id'        => $student->id,
             'course_section_id' => $section->id,
@@ -73,12 +174,14 @@ class StudentCourseRegistrationController extends Controller
 
         $section->increment('enrolled_students');
 
-        return back()->with('success', 'Successfully registered for ' . $course->name . '.');
+        $suffix = $isRetake ? ' (retake)' : '';
+        return back()->with('success',
+            'Successfully enrolled in "' . $course->name . '"' . $suffix . '.');
     }
 
     public function drop(StudentCourseRegistration $registration)
     {
-        $user = auth()->user();
+        $user    = auth()->user();
         $student = Student::where('user_id', $user->id)->first();
 
         if (!$student || $registration->student_id !== $student->id) {
@@ -92,17 +195,25 @@ class StudentCourseRegistrationController extends Controller
     }
 
     /**
-     * Admin: mark a student's course registration as completed.
+     * Admin: mark a student's course registration as completed with a pass/fail result.
      */
-    public function complete(StudentCourseRegistration $registration)
+    public function complete(Request $request, StudentCourseRegistration $registration)
     {
+        $request->validate([
+            'result' => 'required|in:pass,fail',
+        ]);
+
         if ($registration->status !== 'enrolled') {
             return back()->with('error', 'Only enrolled courses can be marked as completed.');
         }
 
-        $registration->update(['status' => 'completed']);
+        $registration->update([
+            'status' => 'completed',
+            'result' => $request->result,
+        ]);
         $registration->courseSection->decrement('enrolled_students');
 
-        return back()->with('success', 'Course marked as completed.');
+        $label = $request->result === 'pass' ? 'Pass' : 'Fail';
+        return back()->with('success', "Course marked as completed ({$label}).");
     }
 }
