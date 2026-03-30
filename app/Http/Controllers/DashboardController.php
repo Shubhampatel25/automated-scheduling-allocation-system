@@ -306,9 +306,21 @@ class DashboardController extends Controller
                 : 'N/A';
             $semester = $studentRecord ? $studentRecord->semester : 'N/A';
 
+            $failedCoursesCount = $studentId
+                ? StudentCourseRegistration::where('student_id', $studentId)->where('result', 'fail')->count()
+                : 0;
+
+            $unpaidRetakeFeesCount = $studentId
+                ? FeePayment::where('student_id', $studentId)
+                    ->where('type', 'supplemental')
+                    ->where('status', '!=', 'paid')
+                    ->count()
+                : 0;
+
             return view('student.dashboard', compact(
                 'courseCount', 'classesPerWeek', 'teacherCount', 'totalCredits',
-                'department', 'semester', 'feeRecord'
+                'department', 'semester', 'feeRecord', 'studentRecord',
+                'failedCoursesCount', 'unpaidRetakeFeesCount'
             ));
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to load dashboard data. Please try again.');
@@ -336,6 +348,7 @@ class DashboardController extends Controller
             if ($course) {
                 $course->registrationId     = $reg->id;
                 $course->registrationStatus = $reg->status;
+                $course->registrationResult = $reg->result;
                 $course->sectionInfo        = $section;
                 $assignment = $section->assignments->first();
                 $course->teacherName = $assignment && $assignment->teacher ? $assignment->teacher->name : 'TBA';
@@ -348,9 +361,24 @@ class DashboardController extends Controller
         $feePaid     = false;
         if ($studentRecord) {
             $feeRecord = FeePayment::where('student_id', $studentRecord->id)
+                ->where('type', 'regular')
                 ->where('semester', $studentRecord->semester)
                 ->where('year', $currentYear)
                 ->first();
+
+            // Auto-correct: if paid_amount covers the total but status was never updated
+            if ($feeRecord && $feeRecord->status !== 'paid') {
+                $pa = (float) ($feeRecord->paid_amount ?? 0);
+                $ta = (float) $feeRecord->amount;
+                if ($ta > 0 && $pa >= $ta) {
+                    DB::table('fee_payments')->where('id', $feeRecord->id)->update([
+                        'status'  => 'paid',
+                        'paid_at' => DB::raw('NOW()'),
+                    ]);
+                    $feeRecord->status = 'paid';
+                }
+            }
+
             $feePaid = $feeRecord && $feeRecord->status === 'paid';
         }
 
@@ -365,6 +393,79 @@ class DashboardController extends Controller
 
             $semester   = $studentRecord ? $studentRecord->semester : 'N/A';
             $department = $studentRecord && $studentRecord->department ? $studentRecord->department->name : 'N/A';
+
+            // ── Auto-advance semester ──────────────────────────────────────────
+            // Two checks (either is sufficient):
+            //   PRIMARY   – semester_1_result = 'Pass' while still on semester 1
+            //               (uses the explicit result field, works immediately)
+            //   SECONDARY – all current-semester course registrations are 'completed'
+            //               AND ≥ 50% are 'pass' (general multi-semester support)
+            if ($studentRecord && is_numeric($semester) && $studentId) {
+                $currentSem    = (int) $semester;
+                $shouldAdvance = false;
+
+                // PRIMARY: semester_1_result field (reliable, already seeded)
+                if ($currentSem === 1 && ($studentRecord->semester_1_result ?? '') === 'Pass') {
+                    $shouldAdvance = true;
+                }
+
+                // SECONDARY: completion-based check (future semesters)
+                if (!$shouldAdvance) {
+                    $semRegs = StudentCourseRegistration::where('student_id', $studentId)
+                        ->whereHas('courseSection.course', fn($q) => $q->where('semester', $currentSem))
+                        ->get();
+
+                    $stillEnrolled = $semRegs->where('status', 'enrolled')->count();
+                    $completed     = $semRegs->where('status', 'completed');
+                    $totalDone     = $completed->count();
+                    $passCount     = $completed->where('result', 'pass')->count();
+
+                    if ($stillEnrolled === 0 && $totalDone > 0 && ($passCount / $totalDone) >= 0.5) {
+                        $shouldAdvance = true;
+                    }
+                }
+
+                if ($shouldAdvance && (int) $studentRecord->semester === $currentSem) {
+                    // For the secondary (completion-based) check only, verify next-semester
+                    // courses actually exist before advancing.  The primary check (semester_1_result)
+                    // always advances — the registration page will show a "no courses yet" state
+                    // gracefully if needed.
+                    $primaryFired = ($currentSem === 1 && ($studentRecord->semester_1_result ?? '') === 'Pass');
+                    $nextSemExists = $primaryFired || Course::where('department_id', $studentRecord->department_id)
+                        ->where('semester', $currentSem + 1)
+                        ->where('status', 'active')
+                        ->exists();
+
+                    if ($nextSemExists) {
+                        DB::table('students')
+                            ->where('id', $studentRecord->id)
+                            ->update(['semester' => $currentSem + 1]);
+                        $studentRecord->semester = $currentSem + 1;
+                        $semester = $currentSem + 1;
+
+                        // Reload fee record for the new semester
+                        $feeRecord = FeePayment::where('student_id', $studentRecord->id)
+                            ->where('type', 'regular')
+                            ->where('semester', $semester)
+                            ->where('year', $currentYear)
+                            ->first();
+                        // Auto-correct paid status if paid_amount already covers the total
+                        if ($feeRecord && $feeRecord->status !== 'paid') {
+                            $pa = (float) ($feeRecord->paid_amount ?? 0);
+                            $ta = (float) $feeRecord->amount;
+                            if ($ta > 0 && $pa >= $ta) {
+                                DB::table('fee_payments')->where('id', $feeRecord->id)
+                                    ->update(['status' => 'paid', 'paid_at' => DB::raw('NOW()')]);
+                                $feeRecord->status = 'paid';
+                            }
+                        }
+                        $feePaid = $feeRecord && $feeRecord->status === 'paid';
+
+                        session()->flash('semester_advanced', $semester);
+                    }
+                }
+            }
+            // ─────────────────────────────────────────────────────────────────
 
             // Term ordering: Winter=1, Summer=2, Fall=3
             $termPriority = ['Winter' => 1, 'Summer' => 2, 'Fall' => 3];
@@ -411,23 +512,162 @@ class DashboardController extends Controller
                     $upcomingYear = $nearest->year;
                 }
 
+                // ── Separate completed-course exclusion by course ID (not section ID) ──
+                // A student who failed CS111 Sec1 must NOT see CS111 Sec2 as a "regular" course.
+                // We exclude by COURSE ID for all completed registrations (pass or fail).
+                // Currently enrolled are excluded by SECTION ID only (so they can retake in a new section).
+                $allCompletedCourseIds = StudentCourseRegistration::where('student_id', $studentId)
+                    ->where('status', 'completed')
+                    ->with('courseSection.course')
+                    ->get()
+                    ->map(fn($r) => $r->courseSection?->course?->id)
+                    ->filter()->unique()->values()->toArray();
+
                 $availableSections = CourseSection::whereNotIn('id', $enrolledSectionIds->toArray())
                     ->where('term', $upcomingTerm)
                     ->where('year', $upcomingYear)
                     ->whereColumn('enrolled_students', '<', 'max_students')
-                    ->whereHas('course', function ($q) use ($studentRecord) {
+                    ->whereHas('course', function ($q) use ($studentRecord, $allCompletedCourseIds) {
                         $q->where('department_id', $studentRecord->department_id)
                           ->where('status', 'active')
                           ->where(function ($q2) use ($studentRecord) {
                               $q2->where('semester', $studentRecord->semester)
                                  ->orWhereNull('semester');
-                          });
+                          })
+                          ->whereNotIn('id', $allCompletedCourseIds); // exclude all completed (pass+fail) by course
                     })
                     ->with(['course.department', 'assignments.teacher'])
                     ->get();
             }
 
-            return view('student.register-courses', compact('availableSections', 'feePaid', 'feeRecord', 'semester', 'department', 'upcomingTerm', 'upcomingYear'));
+            // ── Passed course codes (for prerequisite checking) ──
+            $passedCourseCodes = $studentId
+                ? StudentCourseRegistration::where('student_id', $studentId)
+                    ->where('status', 'completed')
+                    ->where('result', 'pass')
+                    ->with('courseSection.course')
+                    ->get()
+                    ->map(fn($r) => optional($r->courseSection?->course)->code)
+                    ->filter()->unique()->values()->toArray()
+                : [];
+
+            // ── Net-failed course IDs: failed AND not yet cleared by a retake pass ──
+            // These drive the Retake section — independent of supplemental fee status.
+            $passedCourseIds = $studentId
+                ? StudentCourseRegistration::where('student_id', $studentId)
+                    ->where('status', 'completed')->where('result', 'pass')
+                    ->with('courseSection.course')
+                    ->get()
+                    ->map(fn($r) => $r->courseSection?->course?->id)
+                    ->filter()->unique()->values()->toArray()
+                : [];
+
+            $failedCourseIds = $studentId
+                ? StudentCourseRegistration::where('student_id', $studentId)
+                    ->where('status', 'completed')->where('result', 'fail')
+                    ->with('courseSection.course')
+                    ->get()
+                    ->map(fn($r) => $r->courseSection?->course?->id)
+                    ->filter()->unique()->values()->toArray()
+                : [];
+
+            // Net failed = failed but not yet passed via any retake
+            $netFailedCourseIds = array_values(array_diff($failedCourseIds, $passedCourseIds));
+
+            // Retake sections: all net-failed courses in the upcoming term (regardless of supplemental fee)
+            $retakeSections = collect();
+            if ($studentId && !empty($netFailedCourseIds)) {
+                $retakeSections = CourseSection::whereIn('course_id', $netFailedCourseIds)
+                    ->whereNotIn('id', $enrolledSectionIds->toArray())
+                    ->where('term', $upcomingTerm)
+                    ->where('year', $upcomingYear)
+                    ->whereColumn('enrolled_students', '<', 'max_students')
+                    ->whereHas('course', fn($q) => $q->where('status', 'active'))
+                    ->with(['course.department', 'assignments.teacher'])
+                    ->get();
+            }
+
+            // Which retake courses have a paid supplemental fee (controls "Re-Enroll" vs "Fee Required" button)
+            $supplementalPaidCourseIds = $studentId
+                ? FeePayment::where('student_id', $studentId)
+                    ->where('type', 'supplemental')
+                    ->where('status', 'paid')
+                    ->pluck('course_id')->toArray()
+                : [];
+
+            // ── Per-section status: prerequisite + schedule conflict (per course, not per semester) ──
+            $enrolledSlots = $enrolledSectionIds->isNotEmpty()
+                ? TimetableSlot::whereIn('course_section_id', $enrolledSectionIds)->get()
+                : collect();
+
+            $enrolledSectionsMap = $enrolledSectionIds->isNotEmpty()
+                ? CourseSection::whereIn('id', $enrolledSectionIds)->with('course')->get()->keyBy('id')
+                : collect();
+
+            $sectionStatuses = [];
+            foreach ($availableSections as $section) {
+                $course = $section->course;
+
+                // 1. Prerequisite check — per course, not per semester
+                //    Each course is evaluated independently: a student can register for any
+                //    course whose own prerequisite is met, even if they failed unrelated courses.
+                $prereqBlocked  = false;
+                $prereqAdvisory = null;
+
+                if ($course->prerequisite_course_code &&
+                    !in_array($course->prerequisite_course_code, $passedCourseCodes)) {
+                    if ($course->prerequisite_mandatory) {
+                        $prereqBlocked = true;
+                    } else {
+                        $prereqAdvisory = 'Recommended prerequisite "' . $course->prerequisite_course_code . '" not yet passed';
+                    }
+                }
+
+                if ($prereqBlocked) {
+                    $sectionStatuses[$section->id] = [
+                        'blocked'  => true,
+                        'advisory' => null,
+                        'reason'   => 'Prerequisite not passed: must pass "' . $course->prerequisite_course_code . '" first',
+                    ];
+                    continue; // hard-blocked, skip schedule check
+                }
+
+                // 2. Schedule conflict check (runs even when advisory prereq warning exists)
+                $conflictReason = null;
+                if ($enrolledSlots->isNotEmpty()) {
+                    $sectionSlots = TimetableSlot::where('course_section_id', $section->id)->get();
+                    foreach ($sectionSlots as $slot) {
+                        $conflictSlot = $enrolledSlots
+                            ->where('day_of_week', $slot->day_of_week)
+                            ->first(fn($es) => $es->start_time < $slot->end_time && $es->end_time > $slot->start_time);
+                        if ($conflictSlot) {
+                            $conflictCourse = $enrolledSectionsMap->get($conflictSlot->course_section_id)?->course;
+                            $conflictReason = 'Schedule conflict with "' . ($conflictCourse?->name ?? 'another course') . '" on ' . $slot->day_of_week;
+                            break;
+                        }
+                    }
+                }
+
+                if ($conflictReason) {
+                    $sectionStatuses[$section->id] = [
+                        'blocked'  => true,
+                        'advisory' => $prereqAdvisory,
+                        'reason'   => $conflictReason,
+                    ];
+                } else {
+                    $sectionStatuses[$section->id] = [
+                        'blocked'  => false,
+                        'advisory' => $prereqAdvisory,
+                        'reason'   => null,
+                    ];
+                }
+            }
+
+            return view('student.register-courses', compact(
+                'availableSections', 'feePaid', 'feeRecord', 'semester', 'department',
+                'upcomingTerm', 'upcomingYear', 'retakeSections', 'sectionStatuses',
+                'passedCourseCodes', 'supplementalPaidCourseIds'
+            ));
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to load page.');
         }
@@ -448,9 +688,31 @@ class DashboardController extends Controller
                     ->get()->map($mapReg)->filter()->values()
                 : collect();
 
+            // Detect which enrolled courses are retakes (student has a prior fail for the same course)
+            $failedCourseIds = $studentId
+                ? StudentCourseRegistration::where('student_id', $studentId)
+                    ->where('status', 'completed')
+                    ->where('result', 'fail')
+                    ->with('courseSection.course')
+                    ->get()
+                    ->map(fn($r) => $r->courseSection?->course?->id)
+                    ->filter()->unique()->values()->toArray()
+                : [];
+
+            $enrolledCourses = $enrolledCourses->map(function ($course) use ($failedCourseIds) {
+                $course->isRetake = in_array($course->id, $failedCourseIds);
+                return $course;
+            });
+
+            // Exclude from history any section where the student has re-enrolled (retake in progress)
+            $reEnrolledSectionIds = StudentCourseRegistration::where('student_id', $studentId)
+                ->where('status', 'enrolled')
+                ->pluck('course_section_id');
+
             $completedHistory = $studentId
                 ? StudentCourseRegistration::where('student_id', $studentId)
                     ->where('status', 'completed')
+                    ->whereNotIn('course_section_id', $reEnrolledSectionIds)
                     ->with(['courseSection.course.department', 'courseSection.assignments.teacher'])
                     ->get()->map($mapReg)->filter()
                     ->groupBy(fn($c) => $c->semester ?? 0)->sortKeys()
@@ -532,27 +794,85 @@ class DashboardController extends Controller
                     ? (float) $deptFee
                     : $enrolledCourses->sum(fn($c) => (float) ($c->fee ?? 0));
 
-                if (!$feeRecord) {
-                    // Auto-create pending fee record if none exists
+                if (!$feeRecord && $calculatedTotal > 0) {
+                    // Auto-create pending regular fee record if none exists and amount is known
                     $newId = DB::table('fee_payments')->insertGetId([
-                        'student_id' => $studentId,
-                        'semester'   => $studentRecord->semester,
-                        'year'       => $currentYear,
-                        'amount'     => $calculatedTotal,
-                        'status'     => 'pending',
-                        'paid_at'    => null,
-                        'created_at' => DB::raw('NOW()'),
+                        'student_id'  => $studentId,
+                        'type'        => 'regular',
+                        'course_id'   => null,
+                        'semester'    => $studentRecord->semester,
+                        'year'        => $currentYear,
+                        'amount'      => $calculatedTotal,
+                        'paid_amount' => 0,
+                        'status'      => 'pending',
+                        'paid_at'     => null,
+                        'created_at'  => DB::raw('NOW()'),
                     ]);
                     $feeRecord = FeePayment::find($newId);
                     $feePaid   = false;
-                } elseif ($feeRecord->status !== 'paid' && (float) $feeRecord->amount !== $calculatedTotal) {
-                    // Update amount if it changed
+                } elseif ($feeRecord && $feeRecord->status !== 'paid' && (float) $feeRecord->amount !== $calculatedTotal) {
                     DB::table('fee_payments')->where('id', $feeRecord->id)->update(['amount' => $calculatedTotal]);
                     $feeRecord->amount = $calculatedTotal;
                 }
+
+                // Auto-correct status: if paid_amount already covers the total, mark as paid.
+                // This fixes cases where Stripe processed the payment but the status was never updated.
+                if ($feeRecord && $feeRecord->status !== 'paid') {
+                    $paidAmt  = (float) ($feeRecord->paid_amount ?? 0);
+                    $totalAmt = (float) $feeRecord->amount;
+                    if ($totalAmt > 0 && $paidAmt >= $totalAmt) {
+                        DB::table('fee_payments')->where('id', $feeRecord->id)->update([
+                            'status'  => 'paid',
+                            'paid_at' => DB::raw('NOW()'),
+                        ]);
+                        $feeRecord->status = 'paid';
+                        $feePaid = true;
+                    }
+                }
+
+                // Auto-generate supplemental fee records for each failed course (if not yet created)
+                $failedCourseIds = StudentCourseRegistration::where('student_id', $studentId)
+                    ->where('result', 'fail')
+                    ->with('courseSection.course')
+                    ->get()
+                    ->map(fn($r) => $r->courseSection?->course)
+                    ->filter()
+                    ->unique('id');
+
+                foreach ($failedCourseIds as $failedCourse) {
+                    $alreadyExists = FeePayment::where('student_id', $studentId)
+                        ->where('type', 'supplemental')
+                        ->where('course_id', $failedCourse->id)
+                        ->exists();
+
+                    if (!$alreadyExists) {
+                        FeePayment::create([
+                            'student_id' => $studentId,
+                            'type'       => 'supplemental',
+                            'course_id'  => $failedCourse->id,
+                            'semester'   => $failedCourse->semester,
+                            'year'       => $currentYear,
+                            'amount'     => $failedCourse->fee > 0 ? (float) $failedCourse->fee : 300.00,
+                            'paid_amount'=> 0,
+                            'status'     => 'pending',
+                            'created_at' => now(),
+                        ]);
+                    }
+                }
             }
 
-            return view('student.fee-payment', compact('feeRecord', 'feePaid', 'enrolledCourses', 'semester', 'deptFee'));
+            // Load all supplemental fee records (pending + paid) for display
+            $supplementalFees = $studentId
+                ? FeePayment::where('student_id', $studentId)
+                    ->where('type', 'supplemental')
+                    ->with('course')
+                    ->orderBy('status')
+                    ->get()
+                : collect();
+
+            return view('student.fee-payment', compact(
+                'feeRecord', 'feePaid', 'enrolledCourses', 'semester', 'deptFee', 'supplementalFees', 'studentRecord'
+            ));
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to load page.');
         }
@@ -573,7 +893,71 @@ class DashboardController extends Controller
                     ->get()->sum(fn($r) => $r->courseSection->course->credits ?? 0)
                 : 0;
 
-            return view('student.profile', compact('semester', 'department', 'totalCredits', 'feeRecord', 'feePaid'));
+            // All completed registrations with results (for the results history section)
+            $completedResults = $studentId
+                ? StudentCourseRegistration::where('student_id', $studentId)
+                    ->where('status', 'completed')
+                    ->with(['courseSection.course.department'])
+                    ->orderBy('registered_at')
+                    ->get()
+                : collect();
+
+            // Backlog detection: a fail is a "cleared backlog" if the same course was later passed
+            $resultsByCourse         = $completedResults->groupBy(fn($r) => $r->courseSection?->course?->id ?? 0);
+            $backlogClearedCourseIds = [];
+            $latestRetakePassIds     = [];
+
+            foreach ($resultsByCourse as $courseId => $regs) {
+                if (!$courseId) continue;
+                $fails  = $regs->where('result', 'fail');
+                $passes = $regs->where('result', 'pass')->sortByDesc(fn($r) => $r->registered_at ?? '');
+                if ($fails->isNotEmpty() && $passes->isNotEmpty()) {
+                    $backlogClearedCourseIds[] = $courseId;
+                    $latestRetakePassIds[]     = $passes->first()->id;
+                }
+            }
+
+            $completedResults = $completedResults->map(function ($reg) use ($backlogClearedCourseIds, $latestRetakePassIds) {
+                $courseId              = $reg->courseSection?->course?->id;
+                $reg->isBacklogCleared = $reg->result === 'fail' && in_array($courseId, $backlogClearedCourseIds);
+                $reg->isRetakePass     = in_array($reg->id, $latestRetakePassIds);
+                return $reg;
+            })->values();
+
+            // Build a set of course codes the student has passed
+            $passedCourseCodes = $completedResults
+                ->where('result', 'pass')
+                ->map(fn($r) => optional($r->courseSection->course)->code)
+                ->filter()
+                ->values()
+                ->toArray();
+
+            // Find next-semester courses with unmet prerequisites
+            $prerequisiteAlerts = collect();
+            if ($studentRecord && is_numeric($semester)) {
+                $nextSemester = (int) $semester + 1;
+                $nextSemesterCourses = Course::where('department_id', $studentRecord->department_id)
+                    ->where('semester', $nextSemester)
+                    ->whereNotNull('prerequisite_course_code')
+                    ->where('prerequisite_course_code', '!=', '')
+                    ->where('status', 'active')
+                    ->get();
+
+                foreach ($nextSemesterCourses as $course) {
+                    if (!in_array($course->prerequisite_course_code, $passedCourseCodes)) {
+                        $prerequisiteAlerts->push([
+                            'course'      => $course->name,
+                            'course_code' => $course->code,
+                            'requires'    => $course->prerequisite_course_code,
+                        ]);
+                    }
+                }
+            }
+
+            return view('student.profile', compact(
+                'semester', 'department', 'totalCredits', 'feeRecord', 'feePaid',
+                'completedResults', 'prerequisiteAlerts'
+            ));
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to load page.');
         }

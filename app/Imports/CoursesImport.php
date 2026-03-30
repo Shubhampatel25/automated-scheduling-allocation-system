@@ -29,11 +29,19 @@ class CoursesImport implements ToModel, WithHeadingRow, SkipsOnError, SkipsOnFai
             return null;
         }
 
+        // Accept department_id (int) or department_code (string lookup)
+        $deptId = null;
+        if (!empty($row['department_id']) && is_numeric($row['department_id'])) {
+            $deptId = (int) $row['department_id'];
+        } elseif (!empty($row['department_code'])) {
+            $deptId = DB::table('departments')->where('code', strtoupper(trim((string)$row['department_code'])))->value('id');
+        }
+
         DB::table('courses')->insertOrIgnore([
             'id'            => isset($row['id']) && $row['id'] !== '' ? (int)$row['id'] : null,
             'code'          => $code,
             'name'          => trim((string)($row['name'] ?? '')),
-            'department_id' => isset($row['department_id']) && $row['department_id'] !== '' ? (int)$row['department_id'] : null,
+            'department_id' => $deptId,
             'credits'       => isset($row['credits'])   && $row['credits']   !== '' ? (int)$row['credits']   : 3,
             'type'          => strtolower(trim((string)($row['type'] ?? 'theory'))),
             'description'   => $row['description'] ?? null,

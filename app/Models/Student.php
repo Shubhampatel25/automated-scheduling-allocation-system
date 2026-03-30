@@ -18,6 +18,7 @@ class Student extends Model
         'email',
         'department_id',
         'semester',
+        'semester_1_result',
         'status',
         'created_at',
     ];

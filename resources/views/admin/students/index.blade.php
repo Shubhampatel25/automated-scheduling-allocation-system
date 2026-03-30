@@ -117,6 +117,50 @@
     </div>
 </div>
 
+<!-- Mark Complete Modal -->
+<div class="modal-backdrop" id="completeModalBackdrop">
+    <div class="modal-card" style="max-width:440px">
+        <div class="modal-top">
+            <h3>Mark Course Complete</h3>
+            <button class="modal-close-btn" onclick="closeCompleteModal()">&times;</button>
+        </div>
+        <form method="POST" id="completeForm" action="">
+            @csrf
+            <div style="padding:20px 24px;">
+                <p style="margin:0 0 4px;font-size:0.875rem;color:#6b7280;">Student</p>
+                <p style="margin:0 0 16px;font-size:0.95rem;font-weight:600;color:#111827;" id="completeStudentName"></p>
+                <p style="margin:0 0 4px;font-size:0.875rem;color:#6b7280;">Course</p>
+                <p style="margin:0 0 20px;font-size:0.95rem;font-weight:600;color:#111827;" id="completeCourseName"></p>
+                <div class="field-group">
+                    <label>Result</label>
+                    <div style="display:flex;gap:24px;margin-top:8px;">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:normal;">
+                            <input type="radio" name="result" value="pass" required
+                                style="accent-color:#16a34a;width:16px;height:16px;">
+                            <span style="color:#16a34a;font-weight:600;font-size:0.95rem;">&#10003; Pass</span>
+                        </label>
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:normal;">
+                            <input type="radio" name="result" value="fail" required
+                                style="accent-color:#dc2626;width:16px;height:16px;">
+                            <span style="color:#dc2626;font-weight:600;font-size:0.95rem;">&#10007; Fail</span>
+                        </label>
+                    </div>
+                </div>
+                <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:16px;">
+                    <button type="button" onclick="closeCompleteModal()"
+                        style="padding:8px 18px;border:1px solid #d1d5db;border-radius:6px;background:#fff;cursor:pointer;font-size:0.875rem;">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                        style="padding:8px 18px;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.875rem;font-weight:600;">
+                        Save & Complete
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Courses Detail Modal -->
 <div class="modal-backdrop" id="coursesModalBackdrop">
     <div class="modal-card" style="max-width:820px">
@@ -313,18 +357,24 @@ function renderCourseRows(regs, name) {
         const isEnrolled = status === 'enrolled';
         const semLabel   = course.semester ? 'Sem ' + course.semester : '—';
 
-        const statusBadge = isEnrolled
-            ? `<span style="background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;">Enrolled</span>`
-            : `<span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;">&#10003; Completed</span>`;
+        const result = reg.result || null;
+        let statusBadge;
+        if (isEnrolled) {
+            statusBadge = `<span style="background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;">Enrolled</span>`;
+        } else if (result === 'pass') {
+            statusBadge = `<span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;">&#10003; Pass</span>`;
+        } else if (result === 'fail') {
+            statusBadge = `<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;">&#10007; Fail</span>`;
+        } else {
+            statusBadge = `<span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;">&#10003; Completed</span>`;
+        }
 
         const actionBtn = isEnrolled
-            ? `<form method="POST" action="${completeBaseUrl}/${reg.id}/complete" style="display:inline"
-                    onsubmit="return confirm('Mark this course as completed for ${name.replace(/'/g,"\\'")}?')">
-                    <input type="hidden" name="_token" value="${csrfToken}">
-                    <button type="submit" style="background:#16a34a;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:0.78rem;">
-                        Mark Complete
-                    </button>
-               </form>`
+            ? `<button type="button"
+                    style="background:#16a34a;color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:0.78rem;"
+                    onclick="openCompleteModal(${reg.id}, '${(course.name||'').replace(/'/g,"\\'")}', '${name.replace(/'/g,"\\'")}')">
+                    Mark Complete
+               </button>`
             : `<span style="color:#9ca3af;font-size:0.8rem;">—</span>`;
 
         tbody.innerHTML += `<tr>
@@ -341,6 +391,22 @@ function renderCourseRows(regs, name) {
 
 function closeCoursesModal() {
     document.getElementById('coursesModalBackdrop').classList.remove('show');
+}
+
+document.getElementById('completeModalBackdrop').addEventListener('click', function(e) {
+    if (e.target === this) closeCompleteModal();
+});
+
+function openCompleteModal(regId, courseName, studentName) {
+    document.getElementById('completeStudentName').textContent = studentName;
+    document.getElementById('completeCourseName').textContent  = courseName;
+    document.getElementById('completeForm').action = `${completeBaseUrl}/${regId}/complete`;
+    document.querySelectorAll('#completeForm input[name="result"]').forEach(r => r.checked = false);
+    document.getElementById('completeModalBackdrop').classList.add('show');
+}
+
+function closeCompleteModal() {
+    document.getElementById('completeModalBackdrop').classList.remove('show');
 }
 
 @if($errors->any())

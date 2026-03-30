@@ -29,13 +29,21 @@ class TeachersImport implements ToModel, WithHeadingRow, SkipsOnError, SkipsOnFa
             return null;
         }
 
+        // Accept department_id (int) or department_code (string lookup)
+        $deptId = null;
+        if (!empty($row['department_id']) && is_numeric($row['department_id'])) {
+            $deptId = (int) $row['department_id'];
+        } elseif (!empty($row['department_code'])) {
+            $deptId = DB::table('departments')->where('code', strtoupper(trim((string)$row['department_code'])))->value('id');
+        }
+
         DB::table('teachers')->insertOrIgnore([
             'id'            => isset($row['id']) && $row['id'] !== '' ? (int)$row['id'] : null,
-            'user_id'       => isset($row['user_id'])       && $row['user_id']       !== '' ? (int)$row['user_id']       : null,
+            'user_id'       => isset($row['user_id']) && $row['user_id'] !== '' ? (int)$row['user_id'] : null,
             'employee_id'   => $employeeId,
             'name'          => trim((string)($row['name']  ?? '')),
             'email'         => strtolower(trim((string)($row['email'] ?? ''))),
-            'department_id' => isset($row['department_id']) && $row['department_id'] !== '' ? (int)$row['department_id'] : null,
+            'department_id' => $deptId,
             'status'        => strtolower(trim((string)($row['status'] ?? 'active'))),
             'created_at'    => $row['created_at'] ?? now(),
         ]);
