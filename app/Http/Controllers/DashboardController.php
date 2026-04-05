@@ -17,6 +17,7 @@ use App\Models\Teacher;
 use App\Models\TeacherAvailability;
 use App\Models\Timetable;
 use App\Models\TimetableSlot;
+use App\Services\RegistrationEligibilityService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -388,6 +389,7 @@ class DashboardController extends Controller
     public function studentRegisterCourses()
     {
         try {
+            $svc  = new RegistrationEligibilityService();
             $base = $this->getStudentBase();
             extract($base);
 
@@ -395,26 +397,20 @@ class DashboardController extends Controller
             $department = $studentRecord && $studentRecord->department ? $studentRecord->department->name : 'N/A';
 
             // ── Auto-advance semester ──────────────────────────────────────────
-            // Two checks (either is sufficient):
-            //   PRIMARY   – semester_1_result = 'Pass' while still on semester 1
-            //               (uses the explicit result field, works immediately)
-            //   SECONDARY – all current-semester course registrations are 'completed'
-            //               AND ≥ 50% are 'pass' (general multi-semester support)
+            // PRIMARY  : semester_1_result = 'Pass' while still on semester 1
+            // SECONDARY: all current-semester courses completed AND ≥ 50 % passed
             if ($studentRecord && is_numeric($semester) && $studentId) {
                 $currentSem    = (int) $semester;
                 $shouldAdvance = false;
 
-                // PRIMARY: semester_1_result field (reliable, already seeded)
                 if ($currentSem === 1 && ($studentRecord->semester_1_result ?? '') === 'Pass') {
                     $shouldAdvance = true;
                 }
 
-                // SECONDARY: completion-based check (future semesters)
                 if (!$shouldAdvance) {
-                    $semRegs = StudentCourseRegistration::where('student_id', $studentId)
+                    $semRegs       = StudentCourseRegistration::where('student_id', $studentId)
                         ->whereHas('courseSection.course', fn($q) => $q->where('semester', $currentSem))
                         ->get();
-
                     $stillEnrolled = $semRegs->where('status', 'enrolled')->count();
                     $completed     = $semRegs->where('status', 'completed');
                     $totalDone     = $completed->count();
@@ -426,30 +422,20 @@ class DashboardController extends Controller
                 }
 
                 if ($shouldAdvance && (int) $studentRecord->semester === $currentSem) {
-                    // For the secondary (completion-based) check only, verify next-semester
-                    // courses actually exist before advancing.  The primary check (semester_1_result)
-                    // always advances — the registration page will show a "no courses yet" state
-                    // gracefully if needed.
-                    $primaryFired = ($currentSem === 1 && ($studentRecord->semester_1_result ?? '') === 'Pass');
+                    $primaryFired  = ($currentSem === 1 && ($studentRecord->semester_1_result ?? '') === 'Pass');
                     $nextSemExists = $primaryFired || Course::where('department_id', $studentRecord->department_id)
-                        ->where('semester', $currentSem + 1)
-                        ->where('status', 'active')
-                        ->exists();
+                        ->where('semester', $currentSem + 1)->where('status', 'active')->exists();
 
                     if ($nextSemExists) {
-                        DB::table('students')
-                            ->where('id', $studentRecord->id)
+                        DB::table('students')->where('id', $studentRecord->id)
                             ->update(['semester' => $currentSem + 1]);
                         $studentRecord->semester = $currentSem + 1;
-                        $semester = $currentSem + 1;
+                        $semester                = $currentSem + 1;
 
-                        // Reload fee record for the new semester
                         $feeRecord = FeePayment::where('student_id', $studentRecord->id)
-                            ->where('type', 'regular')
-                            ->where('semester', $semester)
-                            ->where('year', $currentYear)
-                            ->first();
-                        // Auto-correct paid status if paid_amount already covers the total
+                            ->where('type', 'regular')->where('semester', $semester)
+                            ->where('year', $currentYear)->first();
+
                         if ($feeRecord && $feeRecord->status !== 'paid') {
                             $pa = (float) ($feeRecord->paid_amount ?? 0);
                             $ta = (float) $feeRecord->amount;
@@ -460,18 +446,15 @@ class DashboardController extends Controller
                             }
                         }
                         $feePaid = $feeRecord && $feeRecord->status === 'paid';
-
                         session()->flash('semester_advanced', $semester);
                     }
                 }
             }
             // ─────────────────────────────────────────────────────────────────
 
-            // Term ordering: Winter=1, Summer=2, Fall=3
+            // ── Upcoming term resolution ──────────────────────────────────────
             $termPriority = ['Winter' => 1, 'Summer' => 2, 'Fall' => 3];
-
-            // Compute the calendar-based upcoming term
-            $month = now()->month;
+            $month        = now()->month;
             if ($month <= 4) {
                 $calTerm = 'Summer'; $calYear = now()->year;
             } elseif ($month <= 8) {
@@ -479,29 +462,52 @@ class DashboardController extends Controller
             } else {
                 $calTerm = 'Winter'; $calYear = now()->year + 1;
             }
-
             $upcomingTerm = $calTerm;
             $upcomingYear = $calYear;
 
-            $availableSections = collect();
-            if ($studentRecord && $feePaid) {
-                // Find the nearest (term, year) that actually has sections for this student
-                $calTermPriority = $termPriority[$calTerm] ?? 1;
+            // ── HYBRID: detect whether real-world registration history exists ──
+            // PATH A (NEW logic)  : student has at least one record in
+            //                       student_course_registrations → use full
+            //                       passed/failed/prerequisite/fee checks.
+            // PATH B (OLD fallback): no history yet (fresh/new student) →
+            //                       degrade gracefully to semester-only display;
+            //                       service calls still work (return [] safely)
+            //                       but we skip the DB round-trips entirely.
+            $hasRegistrationHistory = $studentId
+                ? StudentCourseRegistration::where('student_id', $studentId)->exists()
+                : false;
 
-                $distinctTerms = CourseSection::whereHas('course', function ($q) use ($studentRecord) {
+            // ── Academic record (via service — PATH A only) ───────────────────
+            $passedCourseCodes         = ($studentId && $hasRegistrationHistory) ? $svc->getPassedCourseCodes($studentId)         : [];
+            $netFailedCourseIds        = ($studentId && $hasRegistrationHistory) ? $svc->getNetFailedCourseIds($studentId)        : [];
+            $supplementalPaidCourseIds = ($studentId && $hasRegistrationHistory) ? $svc->getSupplementalPaidCourseIds($studentId) : [];
+
+            // ── Enrolled-slot context (shared by both classifiers) ────────────
+            $enrolledSlots       = $svc->getEnrolledSlots($enrolledSectionIds);
+            $enrolledSectionsMap = $svc->getEnrolledSectionsMap($enrolledSectionIds);
+
+            // ── Candidate regular sections ────────────────────────────────────
+            // Exclude all completed course IDs (pass or fail) — handled per-course not per-section
+            // so a failed student cannot see the same course as a "new" regular course.
+            $allCandidateSections = collect();
+            if ($studentRecord) {
+                $allCompletedCourseIds = StudentCourseRegistration::where('student_id', $studentId)
+                    ->where('status', 'completed')
+                    ->with('courseSection.course')
+                    ->get()
+                    ->map(fn($r) => $r->courseSection?->course?->id)
+                    ->filter()->unique()->values()->toArray();
+
+                // Resolve nearest actual term that has data
+                $calTermPriority = $termPriority[$calTerm] ?? 1;
+                $distinctTerms   = CourseSection::whereHas('course', function ($q) use ($studentRecord) {
                         $q->where('department_id', $studentRecord->department_id)
                           ->where('status', 'active')
-                          ->where(function ($q2) use ($studentRecord) {
-                              $q2->where('semester', $studentRecord->semester)
-                                 ->orWhereNull('semester');
-                          });
+                          ->where(fn($q2) => $q2->where('semester', $studentRecord->semester)->orWhereNull('semester'));
                     })
-                    ->selectRaw('term, year')
-                    ->distinct()
-                    ->get()
+                    ->selectRaw('term, year')->distinct()->get()
                     ->sortBy(fn($r) => $r->year * 10 + ($termPriority[$r->term] ?? 0));
 
-                // Prefer nearest future term; fall back to most recent available
                 $nearest = $distinctTerms->first(function ($r) use ($calYear, $calTermPriority, $termPriority) {
                     $rp = $termPriority[$r->term] ?? 0;
                     return $r->year > $calYear || ($r->year == $calYear && $rp >= $calTermPriority);
@@ -512,161 +518,58 @@ class DashboardController extends Controller
                     $upcomingYear = $nearest->year;
                 }
 
-                // ── Separate completed-course exclusion by course ID (not section ID) ──
-                // A student who failed CS111 Sec1 must NOT see CS111 Sec2 as a "regular" course.
-                // We exclude by COURSE ID for all completed registrations (pass or fail).
-                // Currently enrolled are excluded by SECTION ID only (so they can retake in a new section).
-                $allCompletedCourseIds = StudentCourseRegistration::where('student_id', $studentId)
-                    ->where('status', 'completed')
-                    ->with('courseSection.course')
-                    ->get()
-                    ->map(fn($r) => $r->courseSection?->course?->id)
-                    ->filter()->unique()->values()->toArray();
-
-                $availableSections = CourseSection::whereNotIn('id', $enrolledSectionIds->toArray())
-                    ->where('term', $upcomingTerm)
-                    ->where('year', $upcomingYear)
-                    ->whereColumn('enrolled_students', '<', 'max_students')
-                    ->whereHas('course', function ($q) use ($studentRecord, $allCompletedCourseIds) {
-                        $q->where('department_id', $studentRecord->department_id)
-                          ->where('status', 'active')
-                          ->where(function ($q2) use ($studentRecord) {
-                              $q2->where('semester', $studentRecord->semester)
-                                 ->orWhereNull('semester');
-                          })
-                          ->whereNotIn('id', $allCompletedCourseIds); // exclude all completed (pass+fail) by course
-                    })
-                    ->with(['course.department', 'assignments.teacher'])
-                    ->get();
+                if ($feePaid) {
+                    $allCandidateSections = CourseSection::whereNotIn('id', $enrolledSectionIds->toArray())
+                        ->where('term', $upcomingTerm)->where('year', $upcomingYear)
+                        ->whereColumn('enrolled_students', '<', 'max_students')
+                        ->whereHas('course', function ($q) use ($studentRecord, $allCompletedCourseIds) {
+                            $q->where('department_id', $studentRecord->department_id)
+                              ->where('status', 'active')
+                              ->where(fn($q2) => $q2->where('semester', $studentRecord->semester)->orWhereNull('semester'))
+                              ->whereNotIn('id', $allCompletedCourseIds);
+                        })
+                        ->with(['course.department', 'assignments.teacher'])
+                        ->get();
+                }
             }
 
-            // ── Passed course codes (for prerequisite checking) ──
-            $passedCourseCodes = $studentId
-                ? StudentCourseRegistration::where('student_id', $studentId)
-                    ->where('status', 'completed')
-                    ->where('result', 'pass')
-                    ->with('courseSection.course')
-                    ->get()
-                    ->map(fn($r) => optional($r->courseSection?->course)->code)
-                    ->filter()->unique()->values()->toArray()
-                : [];
+            // ── Classify regular sections → regular + blocked (via service) ───
+            $classified = $svc->classifyRegularSections($allCandidateSections, [
+                'passed_codes'         => $passedCourseCodes,
+                'enrolled_slots'       => $enrolledSlots,
+                'enrolled_sections_map' => $enrolledSectionsMap,
+            ]);
+            $regularSections = $classified['regularSections'];
+            $blockedSections = $classified['blockedSections'];
+            $sectionStatuses = $classified['sectionStatuses'];
 
-            // ── Net-failed course IDs: failed AND not yet cleared by a retake pass ──
-            // These drive the Retake section — independent of supplemental fee status.
-            $passedCourseIds = $studentId
-                ? StudentCourseRegistration::where('student_id', $studentId)
-                    ->where('status', 'completed')->where('result', 'pass')
-                    ->with('courseSection.course')
-                    ->get()
-                    ->map(fn($r) => $r->courseSection?->course?->id)
-                    ->filter()->unique()->values()->toArray()
-                : [];
-
-            $failedCourseIds = $studentId
-                ? StudentCourseRegistration::where('student_id', $studentId)
-                    ->where('status', 'completed')->where('result', 'fail')
-                    ->with('courseSection.course')
-                    ->get()
-                    ->map(fn($r) => $r->courseSection?->course?->id)
-                    ->filter()->unique()->values()->toArray()
-                : [];
-
-            // Net failed = failed but not yet passed via any retake
-            $netFailedCourseIds = array_values(array_diff($failedCourseIds, $passedCourseIds));
-
-            // Retake sections: all net-failed courses in the upcoming term (regardless of supplemental fee)
+            // ── Retake sections (PATH A only — skipped for new students) ─────
+            // Only students with registration history can have net-failed courses.
             $retakeSections = collect();
-            if ($studentId && !empty($netFailedCourseIds)) {
+            $retakeStatuses = [];
+            if ($studentId && $hasRegistrationHistory && !empty($netFailedCourseIds)) {
                 $retakeSections = CourseSection::whereIn('course_id', $netFailedCourseIds)
                     ->whereNotIn('id', $enrolledSectionIds->toArray())
-                    ->where('term', $upcomingTerm)
-                    ->where('year', $upcomingYear)
+                    ->where('term', $upcomingTerm)->where('year', $upcomingYear)
                     ->whereColumn('enrolled_students', '<', 'max_students')
                     ->whereHas('course', fn($q) => $q->where('status', 'active'))
                     ->with(['course.department', 'assignments.teacher'])
                     ->get();
-            }
 
-            // Which retake courses have a paid supplemental fee (controls "Re-Enroll" vs "Fee Required" button)
-            $supplementalPaidCourseIds = $studentId
-                ? FeePayment::where('student_id', $studentId)
-                    ->where('type', 'supplemental')
-                    ->where('status', 'paid')
-                    ->pluck('course_id')->toArray()
-                : [];
-
-            // ── Per-section status: prerequisite + schedule conflict (per course, not per semester) ──
-            $enrolledSlots = $enrolledSectionIds->isNotEmpty()
-                ? TimetableSlot::whereIn('course_section_id', $enrolledSectionIds)->get()
-                : collect();
-
-            $enrolledSectionsMap = $enrolledSectionIds->isNotEmpty()
-                ? CourseSection::whereIn('id', $enrolledSectionIds)->with('course')->get()->keyBy('id')
-                : collect();
-
-            $sectionStatuses = [];
-            foreach ($availableSections as $section) {
-                $course = $section->course;
-
-                // 1. Prerequisite check — per course, not per semester
-                //    Each course is evaluated independently: a student can register for any
-                //    course whose own prerequisite is met, even if they failed unrelated courses.
-                $prereqBlocked  = false;
-                $prereqAdvisory = null;
-
-                if ($course->prerequisite_course_code &&
-                    !in_array($course->prerequisite_course_code, $passedCourseCodes)) {
-                    if ($course->prerequisite_mandatory) {
-                        $prereqBlocked = true;
-                    } else {
-                        $prereqAdvisory = 'Recommended prerequisite "' . $course->prerequisite_course_code . '" not yet passed';
-                    }
-                }
-
-                if ($prereqBlocked) {
-                    $sectionStatuses[$section->id] = [
-                        'blocked'  => true,
-                        'advisory' => null,
-                        'reason'   => 'Prerequisite not passed: must pass "' . $course->prerequisite_course_code . '" first',
-                    ];
-                    continue; // hard-blocked, skip schedule check
-                }
-
-                // 2. Schedule conflict check (runs even when advisory prereq warning exists)
-                $conflictReason = null;
-                if ($enrolledSlots->isNotEmpty()) {
-                    $sectionSlots = TimetableSlot::where('course_section_id', $section->id)->get();
-                    foreach ($sectionSlots as $slot) {
-                        $conflictSlot = $enrolledSlots
-                            ->where('day_of_week', $slot->day_of_week)
-                            ->first(fn($es) => $es->start_time < $slot->end_time && $es->end_time > $slot->start_time);
-                        if ($conflictSlot) {
-                            $conflictCourse = $enrolledSectionsMap->get($conflictSlot->course_section_id)?->course;
-                            $conflictReason = 'Schedule conflict with "' . ($conflictCourse?->name ?? 'another course') . '" on ' . $slot->day_of_week;
-                            break;
-                        }
-                    }
-                }
-
-                if ($conflictReason) {
-                    $sectionStatuses[$section->id] = [
-                        'blocked'  => true,
-                        'advisory' => $prereqAdvisory,
-                        'reason'   => $conflictReason,
-                    ];
-                } else {
-                    $sectionStatuses[$section->id] = [
-                        'blocked'  => false,
-                        'advisory' => $prereqAdvisory,
-                        'reason'   => null,
-                    ];
-                }
+                $retakeClassified = $svc->classifyRetakeSections($retakeSections, [
+                    'supplemental_paid_ids' => $supplementalPaidCourseIds,
+                    'enrolled_slots'        => $enrolledSlots,
+                    'enrolled_sections_map' => $enrolledSectionsMap,
+                ]);
+                $retakeStatuses = $retakeClassified['retakeStatuses'];
             }
 
             return view('student.register-courses', compact(
-                'availableSections', 'feePaid', 'feeRecord', 'semester', 'department',
-                'upcomingTerm', 'upcomingYear', 'retakeSections', 'sectionStatuses',
-                'passedCourseCodes', 'supplementalPaidCourseIds'
+                'regularSections', 'blockedSections', 'sectionStatuses',
+                'feePaid', 'feeRecord', 'semester', 'department',
+                'upcomingTerm', 'upcomingYear',
+                'retakeSections', 'retakeStatuses', 'supplementalPaidCourseIds',
+                'passedCourseCodes'
             ));
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to load page.');
@@ -676,6 +579,7 @@ class DashboardController extends Controller
     public function studentMyCourses()
     {
         try {
+            $svc  = new RegistrationEligibilityService();
             $base = $this->getStudentBase();
             extract($base);
 
@@ -688,37 +592,42 @@ class DashboardController extends Controller
                     ->get()->map($mapReg)->filter()->values()
                 : collect();
 
-            // Detect which enrolled courses are retakes (student has a prior fail for the same course)
-            $failedCourseIds = $studentId
-                ? StudentCourseRegistration::where('student_id', $studentId)
-                    ->where('status', 'completed')
-                    ->where('result', 'fail')
-                    ->with('courseSection.course')
-                    ->get()
-                    ->map(fn($r) => $r->courseSection?->course?->id)
-                    ->filter()->unique()->values()->toArray()
-                : [];
-
+            // Mark enrolled courses as retakes (student has a prior fail for the same course)
+            $failedCourseIds = $studentId ? $svc->getFailedCourseIds($studentId) : [];
             $enrolledCourses = $enrolledCourses->map(function ($course) use ($failedCourseIds) {
                 $course->isRetake = in_array($course->id, $failedCourseIds);
                 return $course;
             });
 
-            // Exclude from history any section where the student has re-enrolled (retake in progress)
-            $reEnrolledSectionIds = StudentCourseRegistration::where('student_id', $studentId)
-                ->where('status', 'enrolled')
-                ->pluck('course_section_id');
-
-            $completedHistory = $studentId
+            // Completed history — raw registration records annotated by service
+            $completedRegs = $studentId
                 ? StudentCourseRegistration::where('student_id', $studentId)
                     ->where('status', 'completed')
-                    ->whereNotIn('course_section_id', $reEnrolledSectionIds)
                     ->with(['courseSection.course.department', 'courseSection.assignments.teacher'])
-                    ->get()->map($mapReg)->filter()
-                    ->groupBy(fn($c) => $c->semester ?? 0)->sortKeys()
+                    ->orderBy('registered_at')
+                    ->get()
                 : collect();
 
-            return view('student.my-courses', compact('enrolledCourses', 'completedHistory', 'semester'));
+            // Annotate with isRetakePass / isBacklogCleared / isRetakeFail
+            $annotatedRegs = $svc->annotateCompletedResults($completedRegs);
+
+            // Group by course semester for display (semester 0 = unknown)
+            $completedHistory = $annotatedRegs
+                ->groupBy(fn($r) => $r->courseSection?->course?->semester ?? 0)
+                ->sortKeys();
+
+            // Summary counts for the header
+            $historyStats = [
+                'total'         => $annotatedRegs->count(),
+                'passed'        => $annotatedRegs->where('result', 'pass')->where('isRetakePass', false)->count(),
+                'retake_pass'   => $annotatedRegs->where('isRetakePass', true)->count(),
+                'failed'        => $annotatedRegs->where('result', 'fail')->where('isBacklogCleared', false)->count(),
+                'backlog_clear' => $annotatedRegs->where('isBacklogCleared', true)->count(),
+            ];
+
+            return view('student.my-courses', compact(
+                'enrolledCourses', 'completedHistory', 'historyStats', 'semester'
+            ));
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to load page.');
         }
@@ -727,11 +636,15 @@ class DashboardController extends Controller
     public function studentTimetable()
     {
         try {
+            $svc  = new RegistrationEligibilityService();
             $base = $this->getStudentBase();
             extract($base);
 
             $semester = $studentRecord ? $studentRecord->semester : 'N/A';
 
+            // Fetch ALL enrolled slots — this already includes both current-semester
+            // courses AND retake/backlog courses because both are stored as 'enrolled'
+            // in student_course_registrations. The timetable is naturally merged.
             $weeklySchedule = $enrolledSectionIds->isNotEmpty()
                 ? TimetableSlot::whereIn('course_section_id', $enrolledSectionIds)
                     ->whereHas('timetable', fn($q) => $q->where('status', 'active'))
@@ -739,7 +652,11 @@ class DashboardController extends Controller
                     ->get()
                 : collect();
 
-            return view('student.timetable', compact('weeklySchedule', 'semester'));
+            // Pass net-failed course IDs so the view can badge retake slots distinctly.
+            // Returns [] for new students (no history) — view handles that gracefully.
+            $retakeCourseIds = $studentId ? $svc->getNetFailedCourseIds($studentId) : [];
+
+            return view('student.timetable', compact('weeklySchedule', 'semester', 'retakeCourseIds'));
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to load page.');
         }
@@ -932,7 +849,21 @@ class DashboardController extends Controller
                 ->values()
                 ->toArray();
 
-            // Find next-semester courses with unmet prerequisites
+            // Build a set of course codes the student is currently enrolled in
+            // (these prerequisites are in progress — don't flag them as unmet)
+            $enrolledCourseCodes = $studentId
+                ? StudentCourseRegistration::where('student_id', $studentId)
+                    ->where('status', 'enrolled')
+                    ->with('courseSection.course')
+                    ->get()
+                    ->map(fn($r) => optional($r->courseSection->course)->code)
+                    ->filter()
+                    ->values()
+                    ->toArray()
+                : [];
+
+            // Find next-semester courses with unmet prerequisites.
+            // Only alert if the prerequisite has NOT been passed AND is NOT currently being taken.
             $prerequisiteAlerts = collect();
             if ($studentRecord && is_numeric($semester)) {
                 $nextSemester = (int) $semester + 1;
@@ -944,13 +875,21 @@ class DashboardController extends Controller
                     ->get();
 
                 foreach ($nextSemesterCourses as $course) {
-                    if (!in_array($course->prerequisite_course_code, $passedCourseCodes)) {
-                        $prerequisiteAlerts->push([
-                            'course'      => $course->name,
-                            'course_code' => $course->code,
-                            'requires'    => $course->prerequisite_course_code,
-                        ]);
+                    $prereq = $course->prerequisite_course_code;
+                    // Already passed — no alert needed
+                    if (in_array($prereq, $passedCourseCodes)) {
+                        continue;
                     }
+                    // Currently enrolled in the prerequisite — in progress, suppress alert
+                    if (in_array($prereq, $enrolledCourseCodes)) {
+                        continue;
+                    }
+                    // Prerequisite not started or failed without re-enrollment
+                    $prerequisiteAlerts->push([
+                        'course'      => $course->name,
+                        'course_code' => $course->code,
+                        'requires'    => $prereq,
+                    ]);
                 }
             }
 

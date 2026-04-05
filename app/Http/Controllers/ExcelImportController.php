@@ -17,6 +17,8 @@ use App\Imports\RoomAvailabilityImport;
 use App\Imports\CoursesImport;
 use App\Imports\CourseSectionsImport;
 use App\Imports\CourseAssignmentsImport;
+use App\Imports\StudentCourseRegistrationsImport;
+use App\Imports\FeePaymentsImport;
 
 class ExcelImportController extends Controller
 {
@@ -34,6 +36,7 @@ class ExcelImportController extends Controller
             'users', 'departments', 'rooms', 'teachers', 'hods', 'students',
             'teacher_availability', 'room_availability',
             'courses', 'course_sections', 'course_assignments',
+            'student_course_registrations', 'fee_payments',
             'timetables', 'timetable_slots', 'conflicts',
         ];
         $counts = [];
@@ -209,7 +212,7 @@ class ExcelImportController extends Controller
         }
 
         $request->validate([
-            'import_type' => ['required', 'in:users,departments,rooms,teachers,hods,students,teacher_availability,room_availability,courses,course_sections,course_assignments'],
+            'import_type' => ['required', 'in:users,departments,rooms,teachers,hods,students,teacher_availability,room_availability,courses,course_sections,course_assignments,student_course_registrations,fee_payments'],
         ], [
             'import_type.required' => 'Please select what to import.',
         ]);
@@ -234,11 +237,14 @@ class ExcelImportController extends Controller
                 ->with('error', 'Could not read the file: ' . $e->getMessage());
         }
 
-        // All recognised sheet names (must match tab names exactly)
+        // All recognised sheet names (must match tab names exactly).
+        // student_course_registrations and fee_payments are listed last — they
+        // depend on students, course_sections, and courses being imported first.
         $knownSheets = [
             'users', 'departments', 'rooms', 'teachers', 'hods', 'students',
             'teacher_availability', 'room_availability',
             'courses', 'course_sections', 'course_assignments',
+            'student_course_registrations', 'fee_payments',
         ];
 
         $matched = array_intersect($knownSheets, $availableSheets);
@@ -281,8 +287,10 @@ class ExcelImportController extends Controller
             'teacher_availability' => ['label' => 'Teacher Availability', 'importer' => $import->teacherAvailability],
             'room_availability'    => ['label' => 'Room Availability',    'importer' => $import->roomAvailability],
             'courses'              => ['label' => 'Courses',              'importer' => $import->courses],
-            'course_sections'      => ['label' => 'Course Sections',      'importer' => $import->courseSections],
-            'course_assignments'   => ['label' => 'Course Assignments',   'importer' => $import->courseAssignments],
+            'course_sections'              => ['label' => 'Course Sections',              'importer' => $import->courseSections],
+            'course_assignments'           => ['label' => 'Course Assignments',           'importer' => $import->courseAssignments],
+            'student_course_registrations' => ['label' => 'Student Course Registrations', 'importer' => $import->studentCourseRegistrations],
+            'fee_payments'                 => ['label' => 'Fee Payments',                 'importer' => $import->feePayments],
         ];
 
         $summary       = [];
@@ -327,17 +335,19 @@ class ExcelImportController extends Controller
     private function handleSingleType($file, string $type)
     {
         $map = [
-            'users'                => UsersImport::class,
-            'departments'          => DepartmentsImport::class,
-            'rooms'                => RoomsImport::class,
-            'teachers'             => TeachersImport::class,
-            'hods'                 => HodsImport::class,
-            'students'             => StudentsImport::class,
-            'teacher_availability' => TeacherAvailabilityImport::class,
-            'room_availability'    => RoomAvailabilityImport::class,
-            'courses'              => CoursesImport::class,
-            'course_sections'      => CourseSectionsImport::class,
-            'course_assignments'   => CourseAssignmentsImport::class,
+            'users'                        => UsersImport::class,
+            'departments'                  => DepartmentsImport::class,
+            'rooms'                        => RoomsImport::class,
+            'teachers'                     => TeachersImport::class,
+            'hods'                         => HodsImport::class,
+            'students'                     => StudentsImport::class,
+            'teacher_availability'         => TeacherAvailabilityImport::class,
+            'room_availability'            => RoomAvailabilityImport::class,
+            'courses'                      => CoursesImport::class,
+            'course_sections'              => CourseSectionsImport::class,
+            'course_assignments'           => CourseAssignmentsImport::class,
+            'student_course_registrations' => StudentCourseRegistrationsImport::class,
+            'fee_payments'                 => FeePaymentsImport::class,
         ];
 
         $importer = new $map[$type]();
@@ -394,17 +404,19 @@ class ExcelImportController extends Controller
     private function typeLabel(string $type): string
     {
         return match ($type) {
-            'departments'          => 'department(s)',
-            'rooms'                => 'room(s)',
-            'teachers'             => 'teacher(s)',
-            'hods'                 => 'HOD(s)',
-            'students'             => 'student(s)',
-            'teacher_availability' => 'teacher availability record(s)',
-            'room_availability'    => 'room availability record(s)',
-            'courses'              => 'course(s)',
-            'course_sections'      => 'course section(s)',
-            'course_assignments'   => 'course assignment(s)',
-            default                => 'record(s)',
+            'departments'                  => 'department(s)',
+            'rooms'                        => 'room(s)',
+            'teachers'                     => 'teacher(s)',
+            'hods'                         => 'HOD(s)',
+            'students'                     => 'student(s)',
+            'teacher_availability'         => 'teacher availability record(s)',
+            'room_availability'            => 'room availability record(s)',
+            'courses'                      => 'course(s)',
+            'course_sections'              => 'course section(s)',
+            'course_assignments'           => 'course assignment(s)',
+            'student_course_registrations' => 'student course registration(s)',
+            'fee_payments'                 => 'fee payment record(s)',
+            default                        => 'record(s)',
         };
     }
 }
