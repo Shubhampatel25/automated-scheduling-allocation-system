@@ -8,6 +8,8 @@ use App\Models\User;
 use App\Models\Department;
 use App\Models\ActivityLog;
 use App\Models\StudentCourseRegistration;
+use App\Models\StudentSemesterHistory;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class StudentController extends Controller
@@ -22,13 +24,8 @@ class StudentController extends Controller
             ->withCount(['studentCourseRegistrations as enrolled_count' => function ($q) {
                 $q->where('status', 'enrolled');
             }])
-            ->when($search, fn($q) => $q
-                ->where('name', 'like', "%{$search}%")
-                ->orWhere('roll_no', 'like', "%{$search}%")
-                ->orWhere('email', 'like', "%{$search}%")
-            )
-            ->paginate(10)
-            ->withQueryString();
+            ->orderBy('name')
+            ->get();
         $departments = Department::all();
         return view('admin.students.index', compact('students', 'departments'));
     }
@@ -42,26 +39,49 @@ class StudentController extends Controller
             'semester'      => 'required|integer|between:1,8',
         ]);
 
-        $email = strtolower(str_replace([' ', '/'], '', $request->roll_no)) . '@student.edu';
+        $firstName = strtolower(str_replace(' ', '', explode(' ', trim($request->name))[0]));
+        $rollClean = strtolower(str_replace(['/', ' '], '', $request->roll_no));
+        $email     = $firstName . $rollClean . '@student.edu';
 
-        $user = User::create([
-            'username' => $request->roll_no,
-            'email'    => $email,
-            'password' => Hash::make('password'),
-            'role'     => 'student',
-            'status'   => 'active',
-        ]);
+        // Atomic: both User and Student must be created together.
+        // If Student creation fails, the User record is rolled back automatically.
+        DB::transaction(function () use ($request, $email) {
+            $user = User::create([
+                'username' => $request->roll_no,
+                'email'    => $email,
+                'password' => Hash::make('password'),
+                'role'     => 'student',
+                'status'   => 'active',
+            ]);
 
-        Student::create([
-            'user_id'       => $user->id,
-            'roll_no'       => $request->roll_no,
-            'name'          => $request->name,
-            'email'         => $email,
-            'department_id' => $request->department_id,
-            'semester'      => $request->semester,
-            'status'        => 'active',
-            'created_at'    => now(),
-        ]);
+            $student = Student::create([
+                'user_id'       => $user->id,
+                'roll_no'       => $request->roll_no,
+                'name'          => $request->name,
+                'email'         => $email,
+                'department_id' => $request->department_id,
+                'semester'      => $request->semester,
+                'status'        => 'active',
+                'created_at'    => now(),
+            ]);
+
+            StudentSemesterHistory::create([
+                'student_id' => $student->id,
+                'semester'   => $student->semester,
+                'year'       => now()->year,
+                'result'     => 'in_progress',
+                'started_at' => now(),
+            ]);
+
+            ActivityLog::create([
+                'user_id'     => auth()->id(),
+                'action'      => 'create_student',
+                'entity_type' => 'student',
+                'entity_id'   => $student->id,
+                'details'     => "Admin created student roll_no={$request->roll_no} name={$request->name}",
+                'created_at'  => now(),
+            ]);
+        });
 
         return redirect()->route('admin.students.index')
             ->with('success', 'Student added successfully.');
@@ -89,16 +109,32 @@ class StudentController extends Controller
 
     public function destroy(Student $student)
     {
-        $userId = $student->user_id;
+        $userId  = $student->user_id;
+        $rollNo  = $student->roll_no;
+        $adminId = auth()->id();
 
-        // Delete child records first (foreign key order matters)
-        $student->studentCourseRegistrations()->delete();
+        DB::transaction(function () use ($student, $userId, $rollNo, $adminId) {
+            // Delete child records first (foreign key order matters)
+            $student->studentCourseRegistrations()->delete();
+            $student->delete();
 
-        $student->delete();
-        if ($userId) {
-            ActivityLog::where('user_id', $userId)->delete();
-            User::destroy($userId);
-        }
+            if ($userId) {
+                // Preserve ActivityLog records — deleting them would erase the audit trail.
+                // Nullify user_id on logs if the FK is nullable, otherwise leave as-is.
+                // User record is removed last.
+                User::destroy($userId);
+            }
+
+            // Log the deletion itself so the action is traceable
+            ActivityLog::create([
+                'user_id'     => $adminId,
+                'action'      => 'delete_student',
+                'entity_type' => 'student',
+                'entity_id'   => $student->id,
+                'details'     => "Admin deleted student roll_no={$rollNo}",
+                'created_at'  => now(),
+            ]);
+        });
 
         return redirect()->route('admin.students.index')
             ->with('success', 'Student deleted successfully.');

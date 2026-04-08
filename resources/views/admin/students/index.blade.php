@@ -11,6 +11,56 @@
 @push('styles')
 <link rel="stylesheet" href="{{ asset('css/manage.css') }}">
 <style>
+.filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+}
+.filter-bar label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #6b7280;
+    margin-right: 4px;
+}
+.filter-bar select {
+    padding: 6px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    color: #374151;
+    background: #fff;
+    cursor: pointer;
+}
+.filter-bar select:focus {
+    outline: none;
+    border-color: #4f46e5;
+}
+.btn-clear-filters {
+    padding: 6px 14px;
+    background: none;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    color: #6b7280;
+    cursor: pointer;
+}
+.btn-clear-filters:hover { background: #f3f4f6; }
+.filter-badge {
+    display: none;
+    font-size: 0.72rem;
+    background: #4f46e5;
+    color: #fff;
+    border-radius: 10px;
+    padding: 2px 8px;
+    font-weight: 600;
+    margin-left: 4px;
+}
 .modal-sem-tab {
     padding: 8px 16px;
     background: none;
@@ -39,9 +89,9 @@
 @endif
 <div class="manage-header">
     <div class="manage-title">
-        <h2>Student</h2>
+        <h2>Students</h2>
         <div class="breadcrumb-nav">
-            <a href="{{ route('admin.dashboard') }}">Dashboard</a> / Manage Student
+            <a href="{{ route('admin.dashboard') }}">Dashboard</a> / Manage Students
         </div>
     </div>
     <button class="btn-add" onclick="openModal()">+ Add Student</button>
@@ -51,26 +101,75 @@
     <div class="card-header">
         <h3>Student List</h3>
         <div class="table-toolbar">
-            <div class="rows-label">
-                Rows per page
-                <select><option>10</option><option>20</option><option>50</option></select>
-            </div>
             <form method="GET" action="{{ route('admin.students.index') }}" id="searchForm" style="display:contents">
             <div class="search-wrap">
                 <span class="si">&#128269;</span>
-                <input type="text" name="search" id="searchInput" placeholder="Search all records..." value="{{ request('search') }}" onkeyup="debounceSearch()">
+                <input type="text" name="search" id="searchInput" placeholder="Search all records..." value="{{ request('search') }}" oninput="filterTable('studentTable')" autocomplete="off">
             </div>
             </form>
         </div>
     </div>
     <div class="card-body">
+
+        {{-- Multi-filter bar --}}
+        <div class="filter-bar">
+            <div>
+                <label for="filterDept">Department</label>
+                <select id="filterDept" onchange="applyFilters()">
+                    <option value="">All Departments</option>
+                    @foreach($departments->sortBy('name') as $dept)
+                        <option value="{{ strtolower($dept->name) }}">{{ $dept->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label for="filterSem">Semester</label>
+                <select id="filterSem" onchange="applyFilters()">
+                    <option value="">All Semesters</option>
+                    @for($i = 1; $i <= 8; $i++)
+                        <option value="{{ $i }}">Semester {{ $i }}</option>
+                    @endfor
+                </select>
+            </div>
+            <div>
+                <label for="filterResult">Result Status</label>
+                <select id="filterResult" onchange="applyFilters()">
+                    <option value="">All Statuses</option>
+                    <option value="pass">Pass</option>
+                    <option value="fail">Fail</option>
+                    <option value="enrolled">Enrolled (in progress)</option>
+                    <option value="none">No Courses Yet</option>
+                </select>
+            </div>
+            <div>
+                <label for="filterTerm">Reg. Term</label>
+                <select id="filterTerm" onchange="applyFilters()">
+                    <option value="">All Terms</option>
+                    @php
+                        $allTerms = $students->map(function($s) {
+                            $sec = $s->studentCourseRegistrations->where('status','enrolled')
+                                ->sortByDesc(fn($r) => $r->courseSection->year ?? 0)->first()?->courseSection;
+                            return $sec ? trim(($sec->term ?? '') . ' ' . ($sec->year ?? '')) : null;
+                        })->filter()->unique()->sort()->values();
+                    @endphp
+                    @foreach($allTerms as $term)
+                        <option value="{{ strtolower($term) }}">{{ $term }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <button class="btn-clear-filters" onclick="clearFilters()">&#10005; Clear Filters</button>
+            <span class="filter-badge" id="filterCount"></span>
+        </div>
+
         <table class="data-table" id="studentTable">
             <thead>
                 <tr>
                     <th>Roll ID</th>
                     <th>Name</th>
+                    <th>Email</th>
                     <th>Department</th>
                     <th>Semester</th>
+                    <th>Reg. Term</th>
                     <th>Enrolled Courses</th>
                     <th>Action</th>
                 </tr>
@@ -78,14 +177,34 @@
             <tbody>
                 @forelse($students as $student)
                 @php
-                    $activeRegs   = $student->studentCourseRegistrations->whereIn('status', ['enrolled', 'completed']);
-                    $enrolledRegs = $activeRegs->where('status', 'enrolled');
+                    $activeRegs    = $student->studentCourseRegistrations->whereIn('status', ['enrolled', 'completed']);
+                    $enrolledRegs  = $activeRegs->where('status', 'enrolled');
+                    $completedRegs = $activeRegs->where('status', 'completed');
+                    $resultFlags   = $completedRegs->pluck('result')->filter()->unique()->implode(' ');
+                    if ($enrolledRegs->isNotEmpty()) $resultFlags = trim($resultFlags . ' enrolled');
+                    if (!$resultFlags) $resultFlags = 'none';
+                    // Get term/year from currently enrolled sections (latest year first)
+                    $currentSection = $enrolledRegs->sortByDesc(fn($r) => $r->courseSection->year ?? 0)->first()?->courseSection;
+                    $regTerm = $currentSection ? trim(($currentSection->term ?? '') . ' ' . ($currentSection->year ?? '')) : '';
                 @endphp
-                <tr>
+                <tr data-dept="{{ strtolower($student->department->name ?? '') }}"
+                    data-semester="{{ $student->semester }}"
+                    data-result="{{ $resultFlags }}"
+                    data-term="{{ strtolower($regTerm) }}">
                     <td>{{ $student->roll_no }}</td>
                     <td>{{ $student->name }}</td>
+                    <td style="color:#4f46e5;font-size:0.83rem;">{{ $student->email ?? 'N/A' }}</td>
                     <td>{{ $student->department->name ?? 'N/A' }}</td>
                     <td>{{ $student->semester }}</td>
+                    <td>
+                        @if($regTerm)
+                            <span style="font-size:0.75rem;background:#ede9fe;color:#5b21b6;padding:2px 7px;border-radius:8px;font-weight:600;white-space:nowrap;">
+                                {{ $regTerm }}
+                            </span>
+                        @else
+                            <span style="color:#9ca3af;font-size:0.8rem;">—</span>
+                        @endif
+                    </td>
                     <td>
                         @if($activeRegs->count() > 0)
                             <button class="link-edit" style="color:#4f46e5;font-weight:500"
@@ -109,11 +228,11 @@
                     </td>
                 </tr>
                 @empty
-                <tr><td colspan="6" style="text-align:center;padding:24px;color:#9ca3af">No students found.</td></tr>
+                <tr><td colspan="8" style="text-align:center;padding:24px;color:#9ca3af">No students found.</td></tr>
                 @endforelse
             </tbody>
         </table>
-        <div style="margin-top:16px">{{ $students->links() }}</div>
+        <div id="noResultsMsg" style="display:none;text-align:center;padding:24px;color:#9ca3af;font-size:0.9rem;">No students match the selected filters.</div>
     </div>
 </div>
 
@@ -197,7 +316,7 @@
 <div class="modal-backdrop" id="modalBackdrop">
     <div class="modal-card">
         <div class="modal-top">
-            <h3>Manage Student</h3>
+            <h3 id="modalTitle">Add New Student</h3>
             <button class="modal-close-btn" onclick="closeModal()">&times;</button>
         </div>
 
@@ -213,11 +332,14 @@
 
             <div class="field-group">
                 <label>Name</label>
-                <input type="text" name="name" id="fName" value="{{ old('name') }}" placeholder="Full name" required>
+                <input type="text" name="name" id="fName" value="{{ old('name') }}" placeholder="Full name" required oninput="previewEmail()">
             </div>
             <div class="field-group">
                 <label>Roll No</label>
-                <input type="text" name="roll_no" id="fRoll" value="{{ old('roll_no') }}" placeholder="e.g. CS-2401" required>
+                <input type="text" name="roll_no" id="fRoll" value="{{ old('roll_no') }}" placeholder="e.g. CS-2401" required oninput="previewEmail()">
+                <div id="emailPreview" style="margin-top:5px;font-size:0.78rem;color:#6b7280;display:none;">
+                    &#9993; Email will be: <span id="emailPreviewVal" style="color:#4f46e5;font-weight:600;"></span>
+                </div>
             </div>
             <div class="field-group">
                 <label>Department</label>
@@ -251,10 +373,27 @@ const storeUrl        = "{{ route('admin.students.store') }}";
 const completeBaseUrl = "{{ url('admin/registrations') }}";
 const csrfToken       = "{{ csrf_token() }}";
 
+function previewEmail() {
+    const name    = document.getElementById('fName').value.trim();
+    const rollNo  = document.getElementById('fRoll').value.trim();
+    const preview = document.getElementById('emailPreview');
+    const val     = document.getElementById('emailPreviewVal');
+    if (name && rollNo) {
+        const firstName = name.split(' ')[0].toLowerCase().replace(/\s/g, '');
+        const roll      = rollNo.toLowerCase().replace(/[\s\/]/g, '');
+        val.textContent = firstName + roll + '@student.edu';
+        preview.style.display = 'block';
+    } else {
+        preview.style.display = 'none';
+    }
+}
+
 function openModal() {
     document.getElementById('studentForm').action = storeUrl;
     document.getElementById('formMethod').value   = 'POST';
     document.getElementById('studentForm').reset();
+    document.getElementById('emailPreview').style.display = 'none';
+    document.getElementById('modalTitle').textContent = 'Add New Student';
     document.getElementById('modalBackdrop').classList.add('show');
 }
 
@@ -269,13 +408,50 @@ function editStudent(id, name, roll, deptId, sem) {
     document.getElementById('fRoll').value        = roll;
     document.getElementById('fDept').value        = deptId;
     document.getElementById('fSem').value         = sem;
+    document.getElementById('modalTitle').textContent = 'Edit Student';
     document.getElementById('modalBackdrop').classList.add('show');
 }
 
-function debounceSearch() {
-    clearTimeout(window._st);
-    window._st = setTimeout(() => document.getElementById('searchForm').submit(), 400);
+function filterTable() { applyFilters(); }
+
+function applyFilters() {
+    const query  = document.getElementById('searchInput').value.toLowerCase().trim();
+    const dept   = document.getElementById('filterDept').value.toLowerCase();
+    const sem    = document.getElementById('filterSem').value;
+    const result = document.getElementById('filterResult').value;
+    const term   = document.getElementById('filterTerm').value.toLowerCase();
+
+    let visibleCount = 0;
+    document.querySelectorAll('#studentTable tbody tr').forEach(row => {
+        const matchSearch = !query  || row.textContent.toLowerCase().includes(query);
+        const matchDept   = !dept   || row.dataset.dept === dept;
+        const matchSem    = !sem    || row.dataset.semester === sem;
+        const matchResult = !result || row.dataset.result.split(' ').includes(result);
+        const matchTerm   = !term   || row.dataset.term === term;
+
+        const show = matchSearch && matchDept && matchSem && matchResult && matchTerm;
+        row.style.display = show ? '' : 'none';
+        if (show) visibleCount++;
+    });
+
+    document.getElementById('noResultsMsg').style.display = visibleCount === 0 ? '' : 'none';
+
+    const active = [dept, sem, result, term, query].filter(Boolean).length;
+    const badge  = document.getElementById('filterCount');
+    badge.textContent = active + ' filter' + (active > 1 ? 's' : '') + ' active';
+    badge.style.display = active > 0 ? 'inline' : 'none';
 }
+
+function clearFilters() {
+    document.getElementById('searchInput').value  = '';
+    document.getElementById('filterDept').value   = '';
+    document.getElementById('filterSem').value    = '';
+    document.getElementById('filterResult').value = '';
+    document.getElementById('filterTerm').value   = '';
+    applyFilters();
+}
+
+document.addEventListener('DOMContentLoaded', () => applyFilters());
 
 document.getElementById('modalBackdrop').addEventListener('click', function(e) {
     if (e.target === this) closeModal();

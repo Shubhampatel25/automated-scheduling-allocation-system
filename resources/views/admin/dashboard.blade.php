@@ -95,7 +95,7 @@
         <div class="dashboard-card" id="section-teachers">
             <div class="card-header">
                 <h3>Recent Teachers</h3>
-                <span class="badge badge-primary">View All</span>
+                <a href="{{ route('admin.teachers.index') }}" class="badge badge-primary" style="text-decoration:none;">View All &rarr;</a>
             </div>
             <div class="card-body">
                 @if(isset($recentTeachers) && count($recentTeachers) > 0)
@@ -103,6 +103,7 @@
                         <thead>
                             <tr>
                                 <th>Name</th>
+                                <th>Email</th>
                                 <th>Department</th>
                                 <th>Status</th>
                             </tr>
@@ -111,6 +112,7 @@
                             @foreach($recentTeachers as $teacher)
                                 <tr>
                                     <td>{{ $teacher->name ?? 'N/A' }}</td>
+                                    <td style="color:#4f46e5;font-size:0.83rem;">{{ $teacher->email ?? 'N/A' }}</td>
                                     <td>{{ $teacher->department->name ?? 'N/A' }}</td>
                                     <td><span class="status status-active">Active</span></td>
                                 </tr>
@@ -130,7 +132,7 @@
         <div class="dashboard-card" id="section-courses">
             <div class="card-header">
                 <h3>Recent Courses</h3>
-                <span class="badge badge-success">View All</span>
+                <a href="{{ route('admin.courses.index') }}" class="badge badge-success" style="text-decoration:none;">View All &rarr;</a>
             </div>
             <div class="card-body">
                 @if(isset($recentCourses) && count($recentCourses) > 0)
@@ -140,14 +142,25 @@
                                 <th>Code</th>
                                 <th>Name</th>
                                 <th>Credits</th>
+                                <th>Latest Term</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach($recentCourses as $course)
+                                @php $latestSection = $course->sections->first(); @endphp
                                 <tr>
                                     <td>{{ $course->code ?? 'N/A' }}</td>
                                     <td>{{ $course->name ?? 'N/A' }}</td>
                                     <td>{{ $course->credits ?? 'N/A' }}</td>
+                                    <td>
+                                        @if($latestSection)
+                                            <span style="font-size:0.78rem;background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:8px;font-weight:600;">
+                                                {{ $latestSection->term }} {{ $latestSection->year }}
+                                            </span>
+                                        @else
+                                            <span style="color:#9ca3af;font-size:0.8rem;">—</span>
+                                        @endif
+                                    </td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -165,7 +178,7 @@
         <div class="dashboard-card" id="section-rooms">
             <div class="card-header">
                 <h3>Recent Rooms</h3>
-                <span class="badge badge-warning">View All</span>
+                <a href="{{ route('admin.rooms.index') }}" class="badge badge-warning" style="text-decoration:none;">View All &rarr;</a>
             </div>
             <div class="card-body">
                 @if(isset($recentRooms) && count($recentRooms) > 0)
@@ -206,7 +219,7 @@
         <div class="dashboard-card" id="section-students">
             <div class="card-header">
                 <h3>Recent Students</h3>
-                <span class="badge badge-primary">View All</span>
+                <a href="{{ route('admin.students.index') }}" class="badge badge-primary" style="text-decoration:none;">View All &rarr;</a>
             </div>
             <div class="card-body">
                 @if(isset($recentStudents) && count($recentStudents) > 0)
@@ -214,6 +227,7 @@
                         <thead>
                             <tr>
                                 <th>Name</th>
+                                <th>Email</th>
                                 <th>Department</th>
                                 <th>Status</th>
                             </tr>
@@ -222,6 +236,7 @@
                             @foreach($recentStudents as $student)
                                 <tr>
                                     <td>{{ $student->name ?? 'N/A' }}</td>
+                                    <td style="color:#4f46e5;font-size:0.83rem;">{{ $student->email ?? 'N/A' }}</td>
                                     <td>{{ $student->department->name ?? 'N/A' }}</td>
                                     <td><span class="status status-active">Active</span></td>
                                 </tr>
@@ -241,7 +256,7 @@
         <div class="dashboard-card full-width" id="section-departments">
             <div class="card-header">
                 <h3>Departments</h3>
-                <span class="badge badge-primary">View All</span>
+                <a href="{{ route('admin.departments.index') }}" class="badge badge-primary" style="text-decoration:none;">View All &rarr;</a>
             </div>
             <div class="card-body">
                 @if(isset($recentDepartments) && count($recentDepartments) > 0)
@@ -250,6 +265,7 @@
                             <tr>
                                 <th>Department Name</th>
                                 <th>HOD</th>
+                                <th>HOD Email</th>
                                 <th>Teachers</th>
                                 <th>Courses</th>
                                 <th>Status</th>
@@ -260,6 +276,7 @@
                                 <tr>
                                     <td>{{ $department->name ?? 'N/A' }}</td>
                                     <td>{{ $department->hods->first()?->teacher?->name ?? 'Not Assigned' }}</td>
+                                    <td style="color:#4f46e5;font-size:0.83rem;">{{ $department->hods->first()?->teacher?->email ?? '—' }}</td>
                                     <td>{{ $department->teachers_count ?? 0 }}</td>
                                     <td>{{ $department->courses_count ?? 0 }}</td>
                                     <td><span class="status status-active">Active</span></td>
@@ -280,7 +297,7 @@
         <div class="dashboard-card full-width" id="section-timetables">
             <div class="card-header">
                 <h3>Generated Timetables</h3>
-                <span class="badge badge-success">View All</span>
+                <a href="{{ route('admin.schedule') }}" class="badge badge-success" style="text-decoration:none;">View Schedule &rarr;</a>
             </div>
             <div class="card-body">
                 @if(isset($timetables) && count($timetables) > 0)
@@ -306,8 +323,17 @@
                                     <td>{{ $timetable->generatedByUser->username ?? 'N/A' }}</td>
                                     <td>{{ $timetable->conflicts_count ?? 0 }}</td>
                                     <td>
-                                        <span class="status {{ ($timetable->status ?? '') === 'published' ? 'status-published' : 'status-pending' }}">
-                                            {{ ucfirst($timetable->status ?? 'Draft') }}
+                                        @php
+                                            $tStatus = $timetable->status ?? 'draft';
+                                            $tClass  = match($tStatus) {
+                                                'published' => 'status-published',
+                                                'approved'  => 'status-approved',
+                                                'pending'   => 'status-pending',
+                                                default     => 'status-draft',
+                                            };
+                                        @endphp
+                                        <span class="status {{ $tClass }}">
+                                            {{ ucfirst($tStatus) }}
                                         </span>
                                     </td>
                                 </tr>
@@ -327,7 +353,9 @@
         <div class="dashboard-card full-width" id="section-conflicts">
             <div class="card-header">
                 <h3>Schedule Conflicts</h3>
-                <span class="badge badge-danger">{{ $conflictCount ?? 0 }} Issues</span>
+                <a href="{{ route('admin.conflicts') }}" class="badge badge-danger" style="text-decoration:none;">
+                    {{ ($conflictCount ?? 0) > 0 ? ($conflictCount . ' Unresolved') : 'No Issues' }}
+                </a>
             </div>
             <div class="card-body">
                 @if(isset($conflicts) && count($conflicts) > 0)
@@ -356,8 +384,8 @@
                                     <td>{{ $conflict->slot1->day_of_week ?? 'N/A' }}</td>
                                     <td>{{ $conflict->slot1 ? $conflict->slot1->start_time . ' - ' . $conflict->slot1->end_time : 'N/A' }}</td>
                                     <td>
-                                        <span class="status {{ ($conflict->status ?? '') === 'resolved' ? 'status-active' : 'status-inactive' }}">
-                                            {{ ucfirst($conflict->status ?? 'Unresolved') }}
+                                        <span class="status {{ ($conflict->status ?? '') === 'resolved' ? 'status-resolved' : 'status-unresolved' }}">
+                                            {{ ($conflict->status ?? '') === 'resolved' ? '&#10003; Resolved' : '&#9888; Unresolved' }}
                                         </span>
                                     </td>
                                 </tr>
@@ -377,7 +405,7 @@
         <div class="dashboard-card full-width" id="section-activity">
             <div class="card-header">
                 <h3>Recent Activity</h3>
-                <span class="badge badge-warning">View All</span>
+                <a href="{{ route('admin.activity') }}" class="badge badge-warning" style="text-decoration:none;">View All &rarr;</a>
             </div>
             <div class="card-body">
                 @if(isset($recentActivities) && count($recentActivities) > 0)

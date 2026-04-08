@@ -57,7 +57,7 @@
             Assign Course
         </a>
         <a href="{{ route('hod.generate-timetable') }}" class="action-btn">
-            <div class="action-icon">&#128197;</div>
+            <div class="action-icon">&#9881;</div>
             Generate Timetable
         </a>
         <a href="{{ route('hod.view-timetable') }}" class="action-btn">
@@ -81,7 +81,7 @@
         <div class="dashboard-card" id="section-faculty">
             <div class="card-header">
                 <h3>Faculty Members</h3>
-                <a href="#section-faculty" class="badge badge-primary">View All</a>
+                <a href="{{ route('hod.faculty-members') }}" class="badge badge-primary" style="text-decoration:none;">View All &rarr;</a>
             </div>
             <div class="card-body">
                 @if(isset($facultyMembers) && count($facultyMembers) > 0)
@@ -116,7 +116,7 @@
         <div class="dashboard-card" id="section-courses">
             <div class="card-header">
                 <h3>Department Courses</h3>
-                <a href="#section-courses" class="badge badge-success">View All</a>
+                <a href="{{ route('hod.courses') }}" class="badge badge-success" style="text-decoration:none;">View All &rarr;</a>
             </div>
             <div class="card-body">
                 @if(isset($departmentCourses) && count($departmentCourses) > 0)
@@ -125,17 +125,28 @@
                             <tr>
                                 <th>Code</th>
                                 <th>Course Name</th>
+                                <th>Term / Year</th>
                                 <th>Assigned To</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach($departmentCourses as $course)
+                                @php
+                                    $latestSec  = $course->sections->sortByDesc('year')->first();
+                                    $assignment = $course->sections->flatMap(fn($s) => $s->assignments)->first();
+                                @endphp
                                 <tr>
                                     <td>{{ $course->code ?? 'N/A' }}</td>
                                     <td>{{ $course->name ?? 'N/A' }}</td>
-                                    @php
-                                        $assignment = $course->sections->flatMap(fn($s) => $s->assignments)->first();
-                                    @endphp
+                                    <td>
+                                        @if($latestSec)
+                                            <span style="font-size:0.75rem;background:#ede9fe;color:#5b21b6;padding:2px 7px;border-radius:8px;font-weight:600;">
+                                                {{ $latestSec->term }} {{ $latestSec->year }}
+                                            </span>
+                                        @else
+                                            <span style="color:#9ca3af;">—</span>
+                                        @endif
+                                    </td>
                                     <td>{{ $assignment?->teacher?->name ?? 'Unassigned' }}</td>
                                 </tr>
                             @endforeach
@@ -163,6 +174,7 @@
                             <tr>
                                 <th>Course</th>
                                 <th>Section</th>
+                                <th>Term / Year</th>
                                 <th>Teacher</th>
                                 <th>Status</th>
                             </tr>
@@ -172,6 +184,15 @@
                                 <tr>
                                     <td>{{ $assignment->courseSection->course->name ?? 'N/A' }}</td>
                                     <td>{{ $assignment->courseSection->section_name ?? 'N/A' }}</td>
+                                    <td>
+                                        @if($assignment->courseSection->term)
+                                            <span style="font-size:0.75rem;background:#ede9fe;color:#5b21b6;padding:2px 7px;border-radius:8px;font-weight:600;">
+                                                {{ $assignment->courseSection->term }} {{ $assignment->courseSection->year }}
+                                            </span>
+                                        @else
+                                            <span style="color:#9ca3af;">—</span>
+                                        @endif
+                                    </td>
                                     <td>{{ $assignment->teacher->name ?? 'N/A' }}</td>
                                     <td>
                                         <span class="status status-active">Assigned</span>
@@ -232,7 +253,9 @@
         <div class="dashboard-card full-width" id="section-conflicts">
             <div class="card-header">
                 <h3>Schedule Conflicts</h3>
-                <a href="#section-conflicts" class="badge badge-danger">{{ $conflictCount ?? 0 }} Issues</a>
+                <a href="{{ route('hod.conflicts') }}" class="badge badge-danger" style="text-decoration:none;">
+                    {{ ($conflictCount ?? 0) > 0 ? ($conflictCount . ' Unresolved') : 'No Issues' }}
+                </a>
             </div>
             <div class="card-body">
                 @if(isset($conflicts) && count($conflicts) > 0)
@@ -259,8 +282,8 @@
                                     <td>{{ $conflict->slot1->day_of_week ?? 'N/A' }}</td>
                                     <td>{{ $conflict->slot1 ? $conflict->slot1->start_time . ' - ' . $conflict->slot1->end_time : 'N/A' }}</td>
                                     <td>
-                                        <span class="status {{ ($conflict->status ?? '') === 'resolved' ? 'status-active' : 'status-inactive' }}">
-                                            {{ ucfirst($conflict->status ?? 'Unresolved') }}
+                                        <span class="status {{ ($conflict->status ?? '') === 'resolved' ? 'status-resolved' : 'status-unresolved' }}">
+                                            {{ ($conflict->status ?? '') === 'resolved' ? '&#10003; Resolved' : '&#9888; Unresolved' }}
                                         </span>
                                     </td>
                                 </tr>
@@ -280,7 +303,7 @@
         <div class="dashboard-card full-width" id="section-timetable">
             <div class="card-header">
                 <h3>Department Timetable</h3>
-                <a href="#section-timetable" class="badge badge-warning">Full View</a>
+                <a href="{{ route('hod.view-timetable') }}" class="badge badge-warning" style="text-decoration:none;">Full View &rarr;</a>
             </div>
             <div class="card-body">
                 <div class="timetable-container">

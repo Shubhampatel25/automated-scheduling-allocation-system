@@ -17,7 +17,7 @@
     <span class="icon">&#128218;</span> Manage Courses
 </a>
 <a href="{{ route('admin.hods.index') }}" class="nav-link {{ request()->routeIs('admin.hods.*') ? 'active' : '' }}">
-    <span class="icon">&#127979;</span> Manage HOD
+    <span class="icon">&#127979;</span> HOD Assignments
 </a>
 <a href="{{ route('admin.rooms.index') }}" class="nav-link {{ request()->routeIs('admin.rooms.*') ? 'active' : '' }}">
     <span class="icon">&#127970;</span> Manage Rooms
@@ -39,5 +39,5 @@
     <span class="icon">&#128196;</span> Excel Import
 </a>
 <a href="{{ route('admin.activity') }}" class="nav-link {{ request()->routeIs('admin.activity') ? 'active' : '' }}">
-    <span class="icon">&#128203;</span> Activity Logs
+    <span class="icon">&#128196;</span> Activity Logs
 </a>

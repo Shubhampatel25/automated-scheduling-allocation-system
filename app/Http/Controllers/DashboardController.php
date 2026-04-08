@@ -13,11 +13,13 @@ use App\Models\Hod;
 use App\Models\Room;
 use App\Models\Student;
 use App\Models\StudentCourseRegistration;
+use App\Models\StudentSemesterHistory;
 use App\Models\Teacher;
 use App\Models\TeacherAvailability;
 use App\Models\Timetable;
 use App\Models\TimetableSlot;
 use App\Services\RegistrationEligibilityService;
+use App\Services\TimetableConflictService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -34,7 +36,7 @@ class DashboardController extends Controller
             $conflictCount = Conflict::where('status', 'unresolved')->count();
 
             $recentTeachers    = Teacher::with('department')->latest('created_at')->take(5)->get();
-            $recentCourses     = Course::latest('created_at')->take(5)->get();
+            $recentCourses     = Course::with(['sections' => fn($q) => $q->orderByDesc('year')])->latest('created_at')->take(5)->get();
             $recentActivities  = ActivityLog::latest('created_at')->take(10)->get();
             $recentStudents    = Student::with('department')->latest('created_at')->take(5)->get();
             $recentRooms       = Room::latest('created_at')->take(5)->get();
@@ -140,7 +142,9 @@ class DashboardController extends Controller
             $assignedCourses = $teacherId
                 ? Course::whereHas('sections.assignments', function ($q) use ($teacherId) {
                     $q->where('teacher_id', $teacherId);
-                })->withCount(['sections as students_count' => function ($q) {
+                })->with(['sections' => function ($q) use ($teacherId) {
+                    $q->whereHas('assignments', fn($aq) => $aq->where('teacher_id', $teacherId))->orderByDesc('year');
+                }])->withCount(['sections as students_count' => function ($q) {
                     $q->select(DB::raw('COALESCE(SUM(enrolled_students), 0)'));
                 }])->get()
                 : collect();
@@ -151,7 +155,7 @@ class DashboardController extends Controller
             $allSlots = $teacherId
                 ? TimetableSlot::where('teacher_id', $teacherId)
                     ->whereHas('timetable', function ($q) { $q->where('status', 'active'); })
-                    ->with(['courseSection.course', 'room'])
+                    ->with(['courseSection.course', 'room', 'timetable'])
                     ->get()
                 : collect();
 
@@ -248,6 +252,26 @@ class DashboardController extends Controller
         $resolvedCount   = Conflict::where('status', 'resolved')->count();
 
         return view('admin.conflicts.index', compact('conflicts', 'unresolvedCount', 'resolvedCount'));
+    }
+
+    public function scanConflicts(TimetableConflictService $conflictService)
+    {
+        $activeTimetables = Timetable::where('status', 'active')->get();
+
+        $total = 0;
+        foreach ($activeTimetables as $timetable) {
+            // Within-timetable scan (safety net)
+            $total += $conflictService->detectAndRecordConflicts($timetable);
+            // Cross-timetable scan (teacher/room shared across semesters)
+            $total += $conflictService->detectCrossTimetableConflicts($timetable);
+            $timetable->update(['conflicts_count' => $timetable->conflicts()->count()]);
+        }
+
+        $msg = $total > 0
+            ? "{$total} new conflict(s) detected across {$activeTimetables->count()} active timetable(s)."
+            : "Scan complete — no new conflicts found.";
+
+        return redirect()->route('admin.conflicts')->with('success', $msg);
     }
 
     public function activity(\Illuminate\Http\Request $request)
@@ -427,25 +451,50 @@ class DashboardController extends Controller
                         ->where('semester', $currentSem + 1)->where('status', 'active')->exists();
 
                     if ($nextSemExists) {
-                        DB::table('students')->where('id', $studentRecord->id)
-                            ->update(['semester' => $currentSem + 1]);
-                        $studentRecord->semester = $currentSem + 1;
-                        $semester                = $currentSem + 1;
+                        // Wrap advancement in a transaction so semester update and
+                        // fee auto-correction are atomic — no partial state on failure.
+                        DB::transaction(function () use ($studentRecord, $currentSem, $currentYear, &$semester, &$feeRecord, &$feePaid) {
+                            DB::table('students')->where('id', $studentRecord->id)
+                                ->update(['semester' => $currentSem + 1]);
+                            $studentRecord->semester = $currentSem + 1;
+                            $semester                = $currentSem + 1;
 
-                        $feeRecord = FeePayment::where('student_id', $studentRecord->id)
-                            ->where('type', 'regular')->where('semester', $semester)
-                            ->where('year', $currentYear)->first();
+                            $feeRecord = FeePayment::where('student_id', $studentRecord->id)
+                                ->where('type', 'regular')->where('semester', $semester)
+                                ->where('year', $currentYear)->first();
 
-                        if ($feeRecord && $feeRecord->status !== 'paid') {
-                            $pa = (float) ($feeRecord->paid_amount ?? 0);
-                            $ta = (float) $feeRecord->amount;
-                            if ($ta > 0 && $pa >= $ta) {
-                                DB::table('fee_payments')->where('id', $feeRecord->id)
-                                    ->update(['status' => 'paid', 'paid_at' => DB::raw('NOW()')]);
-                                $feeRecord->status = 'paid';
+                            if ($feeRecord && $feeRecord->status !== 'paid') {
+                                $pa = (float) ($feeRecord->paid_amount ?? 0);
+                                $ta = (float) $feeRecord->amount;
+                                if ($ta > 0 && $pa >= $ta) {
+                                    DB::table('fee_payments')->where('id', $feeRecord->id)
+                                        ->update(['status' => 'paid', 'paid_at' => DB::raw('NOW()')]);
+                                    $feeRecord->status = 'paid';
+                                }
                             }
-                        }
-                        $feePaid = $feeRecord && $feeRecord->status === 'paid';
+                            $feePaid = $feeRecord && $feeRecord->status === 'paid';
+
+                            // ── Record completed semester in history ──────────
+                            $completedRegs = StudentCourseRegistration::where('student_id', $studentRecord->id)
+                                ->whereHas('courseSection.course', fn($q) => $q->where('semester', $currentSem))
+                                ->where('status', 'completed')->get();
+                            $total  = $completedRegs->count();
+                            $passed = $completedRegs->where('result', 'pass')->count();
+                            $semResult = ($total > 0 && ($passed / $total) >= 0.5) ? 'pass' : 'fail';
+
+                            StudentSemesterHistory::updateOrCreate(
+                                ['student_id' => $studentRecord->id, 'semester' => $currentSem, 'year' => $currentYear],
+                                ['result' => $semResult, 'completed_at' => now()]
+                            );
+
+                            // Create an in_progress record for the new semester
+                            StudentSemesterHistory::firstOrCreate(
+                                ['student_id' => $studentRecord->id, 'semester' => $currentSem + 1, 'year' => $currentYear],
+                                ['result' => 'in_progress', 'started_at' => now()]
+                            );
+                            // ─────────────────────────────────────────────────
+                        });
+
                         session()->flash('semester_advanced', $semester);
                     }
                 }
@@ -519,15 +568,21 @@ class DashboardController extends Controller
                 }
 
                 if ($feePaid) {
+                    // Also exclude course IDs where student is already enrolled in any section
+                    $alreadyEnrolledCourseIds = $enrolledSectionIds->isNotEmpty()
+                        ? CourseSection::whereIn('id', $enrolledSectionIds)->pluck('course_id')->unique()->toArray()
+                        : [];
+
                     $allCandidateSections = CourseSection::whereNotIn('id', $enrolledSectionIds->toArray())
                         ->where('term', $upcomingTerm)->where('year', $upcomingYear)
-                        ->whereColumn('enrolled_students', '<', 'max_students')
-                        ->whereHas('course', function ($q) use ($studentRecord, $allCompletedCourseIds) {
+                        ->whereHas('course', function ($q) use ($studentRecord, $allCompletedCourseIds, $alreadyEnrolledCourseIds) {
                             $q->where('department_id', $studentRecord->department_id)
                               ->where('status', 'active')
                               ->where(fn($q2) => $q2->where('semester', $studentRecord->semester)->orWhereNull('semester'))
-                              ->whereNotIn('id', $allCompletedCourseIds);
+                              ->whereNotIn('id', $allCompletedCourseIds)
+                              ->whereNotIn('id', $alreadyEnrolledCourseIds);
                         })
+                        ->withCount(['studentCourseRegistrations as actual_enrolled' => fn($q) => $q->where('status', 'enrolled')])
                         ->with(['course.department', 'assignments.teacher'])
                         ->get();
                 }
@@ -564,12 +619,31 @@ class DashboardController extends Controller
                 $retakeStatuses = $retakeClassified['retakeStatuses'];
             }
 
+            // Build a course_id → teacher name map so the view can show the real
+            // teacher even when the assignment lives on a different section.
+            $allDisplaySections = $regularSections->merge($blockedSections)->merge($retakeSections);
+            $allCourseIds = $allDisplaySections->map(fn($s) => $s->course?->id)->filter()->unique()->values()->toArray();
+            $courseTeacherMap = [];
+            if (!empty($allCourseIds)) {
+                \App\Models\CourseAssignment::whereHas('courseSection',
+                        fn($q) => $q->whereIn('course_id', $allCourseIds)
+                    )
+                    ->with(['teacher', 'courseSection'])
+                    ->get()
+                    ->each(function ($a) use (&$courseTeacherMap) {
+                        $cid = $a->courseSection->course_id ?? null;
+                        if ($cid && !isset($courseTeacherMap[$cid]) && $a->teacher) {
+                            $courseTeacherMap[$cid] = $a->teacher->name;
+                        }
+                    });
+            }
+
             return view('student.register-courses', compact(
                 'regularSections', 'blockedSections', 'sectionStatuses',
                 'feePaid', 'feeRecord', 'semester', 'department',
                 'upcomingTerm', 'upcomingYear',
                 'retakeSections', 'retakeStatuses', 'supplementalPaidCourseIds',
-                'passedCourseCodes'
+                'passedCourseCodes', 'courseTeacherMap'
             ));
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to load page.');
@@ -591,6 +665,29 @@ class DashboardController extends Controller
                     ->with(['courseSection.course.department', 'courseSection.assignments.teacher'])
                     ->get()->map($mapReg)->filter()->values()
                 : collect();
+
+            // Fix TBA: teacher may be assigned to a different section of the same course.
+            // Pre-load one assignment per course_id across all sections, then fill gaps.
+            $coursesNeedingTeacher = $enrolledCourses
+                ->filter(fn($c) => ($c->teacherName ?? 'TBA') === 'TBA')
+                ->pluck('id');
+
+            if ($coursesNeedingTeacher->isNotEmpty()) {
+                $fallbackAssignments = \App\Models\CourseAssignment::whereHas('courseSection',
+                        fn($q) => $q->whereIn('course_id', $coursesNeedingTeacher)
+                    )
+                    ->with(['teacher', 'courseSection'])
+                    ->get()
+                    ->groupBy(fn($a) => $a->courseSection->course_id ?? 0);
+
+                $enrolledCourses = $enrolledCourses->map(function ($course) use ($fallbackAssignments) {
+                    if (($course->teacherName ?? 'TBA') === 'TBA') {
+                        $assignment = $fallbackAssignments->get($course->id)?->first();
+                        $course->teacherName = $assignment?->teacher?->name ?? 'TBA';
+                    }
+                    return $course;
+                });
+            }
 
             // Mark enrolled courses as retakes (student has a prior fail for the same course)
             $failedCourseIds = $studentId ? $svc->getFailedCourseIds($studentId) : [];
@@ -642,21 +739,45 @@ class DashboardController extends Controller
 
             $semester = $studentRecord ? $studentRecord->semester : 'N/A';
 
-            // Fetch ALL enrolled slots — this already includes both current-semester
-            // courses AND retake/backlog courses because both are stored as 'enrolled'
-            // in student_course_registrations. The timetable is naturally merged.
-            $weeklySchedule = $enrolledSectionIds->isNotEmpty()
-                ? TimetableSlot::whereIn('course_section_id', $enrolledSectionIds)
-                    ->whereHas('timetable', fn($q) => $q->where('status', 'active'))
-                    ->with(['courseSection.course', 'teacher', 'room'])
-                    ->get()
-                : collect();
+            // Fetch timetable slots for the student's enrolled courses.
+            //
+            // We match by COURSE ID (not section ID) because the section the student
+            // enrolled in and the section the HOD generated the timetable for can
+            // differ when courses were auto-created in a different term than the one
+            // the timetable was generated for. Matching via course ensures the student
+            // always sees their schedule regardless of term/section ID mismatch.
+            $weeklySchedule = collect();
+            $timetableIsDraft = false;
+
+            if ($enrolledSectionIds->isNotEmpty() && $studentRecord) {
+                $enrolledCourseIds = CourseSection::whereIn('id', $enrolledSectionIds)
+                    ->pluck('course_id')->toArray();
+
+                if (!empty($enrolledCourseIds)) {
+                    // No semester filter here — retake courses belong to a different
+                    // semester's timetable (e.g. student in Sem 4 retaking a Sem 3 course).
+                    // The course_id filter already restricts to enrolled courses only.
+                    $weeklySchedule = TimetableSlot::whereHas('courseSection',
+                            fn($q) => $q->whereIn('course_id', $enrolledCourseIds)
+                        )
+                        ->whereHas('timetable', fn($q) => $q
+                            ->whereIn('status', ['active', 'draft'])
+                            ->where('department_id', $studentRecord->department_id)
+                        )
+                        ->with(['courseSection.course', 'teacher', 'room', 'timetable'])
+                        ->get()
+                        ->unique('id');
+
+                    $timetableIsDraft = $weeklySchedule->contains(
+                        fn($s) => ($s->timetable->status ?? '') === 'draft'
+                    );
+                }
+            }
 
             // Pass net-failed course IDs so the view can badge retake slots distinctly.
-            // Returns [] for new students (no history) — view handles that gracefully.
             $retakeCourseIds = $studentId ? $svc->getNetFailedCourseIds($studentId) : [];
 
-            return view('student.timetable', compact('weeklySchedule', 'semester', 'retakeCourseIds'));
+            return view('student.timetable', compact('weeklySchedule', 'semester', 'retakeCourseIds', 'timetableIsDraft'));
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to load page.');
         }
@@ -671,12 +792,24 @@ class DashboardController extends Controller
             $semester = $studentRecord ? $studentRecord->semester : 'N/A';
             $today    = now()->format('l');
 
-            $allSlots = $enrolledSectionIds->isNotEmpty()
-                ? TimetableSlot::whereIn('course_section_id', $enrolledSectionIds)
-                    ->whereHas('timetable', fn($q) => $q->where('status', 'active'))
-                    ->with(['courseSection.course', 'teacher', 'room'])
-                    ->get()
-                : collect();
+            $allSlots = collect();
+            if ($enrolledSectionIds->isNotEmpty() && $studentRecord) {
+                $enrolledCourseIds = CourseSection::whereIn('id', $enrolledSectionIds)
+                    ->pluck('course_id')->toArray();
+
+                if (!empty($enrolledCourseIds)) {
+                    $allSlots = TimetableSlot::whereHas('courseSection',
+                            fn($q) => $q->whereIn('course_id', $enrolledCourseIds)
+                        )
+                        ->whereHas('timetable', fn($q) => $q
+                            ->whereIn('status', ['active', 'draft'])
+                            ->where('department_id', $studentRecord->department_id)
+                        )
+                        ->with(['courseSection.course', 'teacher', 'room'])
+                        ->get()
+                        ->unique('id');
+                }
+            }
 
             $todaySchedule = $allSlots->where('day_of_week', $today)->sortBy('start_time')->values();
 

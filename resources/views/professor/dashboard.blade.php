@@ -118,15 +118,26 @@
                                 <th>Code</th>
                                 <th>Course Name</th>
                                 <th>Credits</th>
+                                <th>Term / Year</th>
                                 <th>Students Enrolled</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach($assignedCourses as $course)
+                                @php $sec = $course->sections->first(); @endphp
                                 <tr>
                                     <td>{{ $course->code }}</td>
                                     <td>{{ $course->name }}</td>
                                     <td>{{ $course->credits }}</td>
+                                    <td>
+                                        @if($sec)
+                                            <span style="font-size:0.75rem;background:#ede9fe;color:#5b21b6;padding:2px 7px;border-radius:8px;font-weight:600;">
+                                                {{ $sec->term }} {{ $sec->year }}
+                                            </span>
+                                        @else
+                                            <span style="color:#9ca3af;">—</span>
+                                        @endif
+                                    </td>
                                     <td>{{ $course->students_count ?? 0 }}</td>
                                 </tr>
                             @endforeach
@@ -273,11 +284,10 @@
                         @php
                             $timeSlots = [
                                 '08:00' => '09:30',
-                                '09:30' => '11:00',
-                                '11:00' => '12:30',
-                                '13:00' => '14:30',
-                                '14:30' => '16:00',
-                                '16:00' => '17:30',
+                                '09:40' => '11:10',
+                                '11:20' => '12:50',
+                                '13:50' => '15:20',
+                                '15:30' => '17:00',
                             ];
                         @endphp
                         <table class="timetable">
@@ -298,17 +308,18 @@
                                         @foreach(['Monday','Tuesday','Wednesday','Thursday','Friday'] as $day)
                                             <td>
                                                 @php
-                                                    $slot = $weeklySchedule->first(
+                                                    $daySlots = $weeklySchedule->filter(
                                                         fn($s) => $s->day_of_week === $day
                                                                && substr($s->start_time, 0, 5) === $startStr
                                                     );
                                                 @endphp
-                                                @if($slot)
+                                                @foreach($daySlots as $slot)
                                                     <div class="slot">
                                                         <div class="course-name">{{ $slot->courseSection->course->name ?? '' }}</div>
                                                         <div class="room-name">{{ $slot->room->room_number ?? 'TBA' }}</div>
+                                                        <div style="font-size:0.7rem;color:#6b7280">Sem {{ $slot->timetable->semester ?? '' }}</div>
                                                     </div>
-                                                @endif
+                                                @endforeach
                                             </td>
                                         @endforeach
                                     </tr>

@@ -76,14 +76,6 @@
 </div>
 @endif
 
-{{-- Flash messages --}}
-@if(session('success'))
-<div style="background:#d1fae5;color:#065f46;padding:12px 18px;border-radius:8px;margin-bottom:16px;font-size:0.9rem;border:1px solid #a7f3d0;">&#10003; {{ session('success') }}</div>
-@endif
-@if(session('error'))
-<div style="background:#fee2e2;color:#991b1b;padding:12px 18px;border-radius:8px;margin-bottom:16px;font-size:0.9rem;border:1px solid #fca5a5;">&#9888; {{ session('error') }}</div>
-@endif
-
 {{-- ══════════════════════════════════════════════════════
      SECTION 1 — Payment Status Summary
 ══════════════════════════════════════════════════════ --}}
@@ -192,8 +184,9 @@
                     @foreach($regularSections as $section)
                         @php
                             $course     = $section->course;
-                            $teacher    = $section->assignments->first()?->teacher;
-                            $filled     = $section->enrolled_students;
+                            $teacher    = $section->assignments->first()?->teacher ?? null;
+                            $teacherName = $teacher?->name ?? ($courseTeacherMap[$course->id ?? 0] ?? 'TBA');
+                            $filled     = $section->actual_enrolled ?? $section->enrolled_students;
                             $max        = $section->max_students;
                             $pct        = $max > 0 ? round($filled / $max * 100) : 0;
                             $barClass   = $pct >= 90 ? 'near-full' : '';
@@ -209,7 +202,7 @@
                             <td><span class="badge-dept">{{ $course->department->name ?? 'N/A' }}</span></td>
                             <td><span class="badge-credits">{{ $course->credits ?? 0 }} cr</span></td>
                             <td>Sec {{ $section->section_number }} &bull; {{ $section->term }} {{ $section->year }}</td>
-                            <td>{{ $teacher?->name ?? 'TBA' }}</td>
+                            <td>{{ $teacherName }}</td>
                             <td>
                                 @if(!$prereqCode)
                                     <span class="badge-prereq-none">None</span>
@@ -292,7 +285,8 @@
                 @foreach($retakeSections as $section)
                     @php
                         $course    = $section->course;
-                        $teacher   = $section->assignments->first()?->teacher;
+                        $teacher   = $section->assignments->first()?->teacher ?? null;
+                        $teacherName = $teacher?->name ?? ($courseTeacherMap[$course->id ?? 0] ?? 'TBA');
                         $filled    = $section->enrolled_students;
                         $max       = $section->max_students;
                         $pct       = $max > 0 ? round($filled / $max * 100) : 0;
@@ -309,7 +303,7 @@
                         </td>
                         <td><span class="badge-credits">{{ $course->credits ?? 0 }} cr</span></td>
                         <td>Sec {{ $section->section_number }} &bull; {{ $section->term }} {{ $section->year }}</td>
-                        <td>{{ $teacher?->name ?? 'TBA' }}</td>
+                        <td>{{ $teacherName }}</td>
                         <td>
                             @if($suppPaid)
                                 <span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:10px;font-size:0.73rem;font-weight:700;">&#10003; Paid</span>
@@ -376,8 +370,9 @@
             <tbody>
                 @foreach($blockedSections as $section)
                     @php
-                        $course    = $section->course;
-                        $teacher   = $section->assignments->first()?->teacher;
+                        $course      = $section->course;
+                        $teacher     = $section->assignments->first()?->teacher ?? null;
+                        $teacherName = $teacher?->name ?? ($courseTeacherMap[$course->id ?? 0] ?? 'TBA');
                         $bStatus   = $sectionStatuses[$section->id] ?? ['reason' => 'Unavailable', 'reason_type' => ''];
                         $reasonKey = $bStatus['reason_type'] ?? '';
                     @endphp
@@ -386,7 +381,7 @@
                         <td style="color:#9ca3af;">{{ $course->name ?? 'N/A' }}</td>
                         <td><span class="badge-credits">{{ $course->credits ?? 0 }} cr</span></td>
                         <td style="color:#9ca3af;">Sec {{ $section->section_number }} &bull; {{ $section->term }} {{ $section->year }}</td>
-                        <td style="color:#9ca3af;">{{ $teacher?->name ?? 'TBA' }}</td>
+                        <td style="color:#9ca3af;">{{ $teacherName }}</td>
                         <td>
                             @if($reasonKey === 'prerequisite_fail')
                                 <span class="reason-chip prereq">&#10007; Prerequisite</span>

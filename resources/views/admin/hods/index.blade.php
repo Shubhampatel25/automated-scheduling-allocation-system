@@ -15,9 +15,9 @@
 @section('content')
 <div class="manage-header">
     <div class="manage-title">
-        <h2>HOD</h2>
+        <h2>HOD Assignments</h2>
         <div class="breadcrumb-nav">
-            <a href="{{ route('admin.dashboard') }}">Dashboard</a> / Manage HOD
+            <a href="{{ route('admin.dashboard') }}">Dashboard</a> / HOD Assignments
         </div>
     </div>
     <button class="btn-add" onclick="openModal()">+ Add HOD</button>
@@ -27,14 +27,10 @@
     <div class="card-header">
         <h3>HOD List</h3>
         <div class="table-toolbar">
-            <div class="rows-label">
-                Rows per page
-                <select><option>10</option><option>20</option><option>50</option></select>
-            </div>
             <form method="GET" action="{{ route('admin.hods.index') }}" id="searchForm" style="display:contents">
             <div class="search-wrap">
                 <span class="si">&#128269;</span>
-                <input type="text" name="search" id="searchInput" placeholder="Search all records..." value="{{ request('search') }}" onkeyup="debounceSearch()">
+                <input type="text" name="search" id="searchInput" placeholder="Search all records..." value="{{ request('search') }}" oninput="filterTable('hodTable')" autocomplete="off">
             </div>
             </form>
         </div>
@@ -85,7 +81,7 @@
 <div class="modal-backdrop" id="modalBackdrop">
     <div class="modal-card">
         <div class="modal-top">
-            <h3>Manage HOD</h3>
+            <h3 id="modalTitle">Assign HOD</h3>
             <button class="modal-close-btn" onclick="closeModal()">&times;</button>
         </div>
 
@@ -161,6 +157,7 @@ function openModal() {
     document.getElementById('formMethod').value = 'POST';
     document.getElementById('hodForm').reset();
     filterDeptOptions(null);
+    document.getElementById('modalTitle').textContent = 'Assign HOD';
     document.getElementById('modalBackdrop').classList.add('show');
 }
 
@@ -176,13 +173,25 @@ function editHod(id, name, email, deptId, status) {
     document.getElementById('fDept').value      = deptId;
     document.getElementById('fStatus').value    = status;
     filterDeptOptions(deptId);
+    document.getElementById('modalTitle').textContent = 'Edit HOD Assignment';
     document.getElementById('modalBackdrop').classList.add('show');
+}
+
+function filterTable(tableId) {
+    const query = document.getElementById('searchInput').value.toLowerCase().trim();
+    document.querySelectorAll('#' + tableId + ' tbody tr').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(query) ? '' : 'none';
+    });
 }
 
 function debounceSearch() {
     clearTimeout(window._st);
     window._st = setTimeout(() => document.getElementById('searchForm').submit(), 400);
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (document.getElementById('searchInput').value) filterTable('hodTable');
+});
 
 document.getElementById('modalBackdrop').addEventListener('click', function(e) {
     if (e.target === this) closeModal();

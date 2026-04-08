@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', 'Dashboard') - Scheduling System</title>
+    <title>@yield('title', 'Dashboard') - Academic Scheduling System</title>
     <link rel="stylesheet" href="{{ asset('css/dashboard.css') }}">
     @stack('styles')
 </head>
@@ -12,7 +12,7 @@
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h2>Scheduling System</h2>
+            <h2>Academic Scheduler</h2>
             <p>@yield('role-label', 'Dashboard')</p>
         </div>
 
@@ -42,13 +42,15 @@
         <!-- Page Content -->
         <div class="content-area">
             @if(session('success'))
-                <div class="alert alert-success" style="background:#efe;color:#2d7d46;padding:12px 18px;border-radius:8px;margin-bottom:20px;border:1px solid #b7e4c7;">
+                <div class="alert alert-success" style="background:#d1fae5;color:#065f46;padding:12px 18px;border-radius:8px;margin-bottom:20px;border:1px solid #a7f3d0;display:flex;align-items:center;gap:10px;font-size:0.9rem;">
+                    <span style="font-size:1rem;flex-shrink:0;">&#10003;</span>
                     {{ session('success') }}
                 </div>
             @endif
 
             @if(session('error'))
-                <div class="alert alert-danger" style="background:#fee;color:#c33;padding:12px 18px;border-radius:8px;margin-bottom:20px;border:1px solid #fcc;">
+                <div class="alert alert-danger" style="background:#fee2e2;color:#991b1b;padding:12px 18px;border-radius:8px;margin-bottom:20px;border:1px solid #fca5a5;display:flex;align-items:center;gap:10px;font-size:0.9rem;">
+                    <span style="font-size:1rem;flex-shrink:0;">&#9888;</span>
                     {{ session('error') }}
                 </div>
             @endif

@@ -15,9 +15,9 @@
 @section('content')
 <div class="manage-header">
     <div class="manage-title">
-        <h2>Department</h2>
+        <h2>Departments</h2>
         <div class="breadcrumb-nav">
-            <a href="{{ route('admin.dashboard') }}">Dashboard</a> / Manage Department
+            <a href="{{ route('admin.dashboard') }}">Dashboard</a> / Manage Departments
         </div>
     </div>
     <button class="btn-add" onclick="openModal()">+ Add Department</button>
@@ -27,14 +27,10 @@
     <div class="card-header">
         <h3>Department List</h3>
         <div class="table-toolbar">
-            <div class="rows-label">
-                Rows per page
-                <select><option>10</option><option>20</option><option>50</option></select>
-            </div>
             <form method="GET" action="{{ route('admin.departments.index') }}" id="searchForm" style="display:contents">
             <div class="search-wrap">
                 <span class="si">&#128269;</span>
-                <input type="text" name="search" id="searchInput" placeholder="Search all records..." value="{{ request('search') }}" onkeyup="debounceSearch()">
+                <input type="text" name="search" id="searchInput" placeholder="Search all records..." value="{{ request('search') }}" oninput="filterTable('deptTable')" autocomplete="off">
             </div>
             </form>
         </div>
@@ -89,7 +85,7 @@
 <div class="modal-backdrop" id="modalBackdrop">
     <div class="modal-card">
         <div class="modal-top">
-            <h3>Manage Department</h3>
+            <h3 id="modalTitle">Add New Department</h3>
             <button class="modal-close-btn" onclick="closeModal()">&times;</button>
         </div>
 
@@ -133,6 +129,7 @@ function openModal() {
     document.getElementById('deptForm').action  = storeUrl;
     document.getElementById('formMethod').value = 'POST';
     document.getElementById('deptForm').reset();
+    document.getElementById('modalTitle').textContent = 'Add New Department';
     document.getElementById('modalBackdrop').classList.add('show');
 }
 
@@ -147,13 +144,25 @@ function editDept(id, code, name, desc, fee) {
     document.getElementById('fName').value      = name;
     document.getElementById('fDesc').value      = desc;
     document.getElementById('fFee').value       = fee;
+    document.getElementById('modalTitle').textContent = 'Edit Department';
     document.getElementById('modalBackdrop').classList.add('show');
+}
+
+function filterTable(tableId) {
+    const query = document.getElementById('searchInput').value.toLowerCase().trim();
+    document.querySelectorAll('#' + tableId + ' tbody tr').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(query) ? '' : 'none';
+    });
 }
 
 function debounceSearch() {
     clearTimeout(window._st);
     window._st = setTimeout(() => document.getElementById('searchForm').submit(), 400);
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (document.getElementById('searchInput').value) filterTable('deptTable');
+});
 
 document.getElementById('modalBackdrop').addEventListener('click', function(e) {
     if (e.target === this) closeModal();

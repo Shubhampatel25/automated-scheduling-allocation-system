@@ -27,19 +27,50 @@
     <div class="card-header">
         <h3>Courses List</h3>
         <div class="table-toolbar">
-            <div class="rows-label">
-                Rows per page
-                <select><option>10</option><option>20</option><option>50</option></select>
-            </div>
             <form method="GET" action="{{ route('admin.courses.index') }}" id="searchForm" style="display:contents">
             <div class="search-wrap">
                 <span class="si">&#128269;</span>
-                <input type="text" name="search" id="searchInput" placeholder="Search all records..." value="{{ request('search') }}" onkeyup="debounceSearch()">
+                <input type="text" name="search" id="searchInput" placeholder="Search all records..." value="{{ request('search') }}" oninput="filterTable('courseTable')" autocomplete="off">
             </div>
             </form>
         </div>
     </div>
     <div class="card-body">
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px;padding:12px 16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;">
+            <div><label style="font-size:0.78rem;font-weight:600;color:#6b7280;margin-right:4px;">Department</label>
+                <select id="fDept" onchange="applyFilters()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.85rem;color:#374151;background:#fff;cursor:pointer;">
+                    <option value="">All Departments</option>
+                    @foreach($departments->sortBy('name') as $dept)
+                        <option value="{{ strtolower($dept->name) }}">{{ $dept->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div><label style="font-size:0.78rem;font-weight:600;color:#6b7280;margin-right:4px;">Semester</label>
+                <select id="fSem" onchange="applyFilters()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.85rem;color:#374151;background:#fff;cursor:pointer;">
+                    <option value="">All Semesters</option>
+                    @for($i = 1; $i <= 8; $i++)
+                        <option value="{{ $i }}">Semester {{ $i }}</option>
+                    @endfor
+                </select>
+            </div>
+            <div><label style="font-size:0.78rem;font-weight:600;color:#6b7280;margin-right:4px;">Type</label>
+                <select id="fType" onchange="applyFilters()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.85rem;color:#374151;background:#fff;cursor:pointer;">
+                    <option value="">All Types</option>
+                    <option value="theory">Theory</option>
+                    <option value="lab">Lab</option>
+                    <option value="elective">Elective</option>
+                </select>
+            </div>
+            <div><label style="font-size:0.78rem;font-weight:600;color:#6b7280;margin-right:4px;">Status</label>
+                <select id="fStatus" onchange="applyFilters()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.85rem;color:#374151;background:#fff;cursor:pointer;">
+                    <option value="">All Statuses</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                </select>
+            </div>
+            <button onclick="clearFilters()" style="padding:6px 14px;background:none;border:1px solid #d1d5db;border-radius:6px;font-size:0.82rem;color:#6b7280;cursor:pointer;">&#10005; Clear</button>
+            <span id="filterCount" style="display:none;font-size:0.72rem;background:#4f46e5;color:#fff;border-radius:10px;padding:2px 8px;font-weight:600;"></span>
+        </div>
         <table class="data-table" id="courseTable">
             <thead>
                 <tr>
@@ -56,7 +87,7 @@
             </thead>
             <tbody>
                 @forelse($courses as $course)
-                <tr>
+                <tr data-dept="{{ strtolower($course->department->name ?? '') }}" data-semester="{{ $course->semester }}" data-type="{{ $course->type }}" data-status="{{ $course->status }}">
                     <td>{{ $course->code }}</td>
                     <td>{{ $course->name }}</td>
                     <td>{{ $course->department->name ?? 'N/A' }}</td>
@@ -87,7 +118,7 @@
                 @endforelse
             </tbody>
         </table>
-        <div style="margin-top:16px">{{ $courses->links() }}</div>
+        <div id="noResults" style="display:none;text-align:center;padding:24px;color:#9ca3af;font-size:0.9rem;">No courses match the selected filters.</div>
     </div>
 </div>
 
@@ -95,7 +126,7 @@
 <div class="modal-backdrop" id="modalBackdrop">
     <div class="modal-card">
         <div class="modal-top">
-            <h3>Manage Course</h3>
+            <h3 id="modalTitle">Add New Course</h3>
             <button class="modal-close-btn" onclick="closeModal()">&times;</button>
         </div>
 
@@ -154,9 +185,9 @@
                 <label>Course Type</label>
                 <select name="type" id="fType" required>
                     <option value="">Select Type</option>
-                    <option value="lecture"     {{ old('type') === 'lecture'     ? 'selected' : '' }}>Lecture</option>
-                    <option value="lab"         {{ old('type') === 'lab'         ? 'selected' : '' }}>Lab</option>
-                    <option value="lecture_lab" {{ old('type') === 'lecture_lab' ? 'selected' : '' }}>Lecture + Lab</option>
+                    <option value="theory"  {{ old('type') === 'theory'  ? 'selected' : '' }}>Theory (Lecture)</option>
+                    <option value="lab"     {{ old('type') === 'lab'     ? 'selected' : '' }}>Lab</option>
+                    <option value="hybrid"  {{ old('type') === 'hybrid'  ? 'selected' : '' }}>Hybrid (Lecture + Lab)</option>
                 </select>
             </div>
             <div class="field-group">
@@ -166,7 +197,7 @@
                     <option value="inactive" {{ old('status') === 'inactive' ? 'selected' : '' }}>Inactive</option>
                 </select>
             </div>
-            <button type="submit" class="btn-submit">+ Save</button>
+            <button type="submit" class="btn-submit" id="submitBtn">Add Course</button>
         </form>
     </div>
 </div>
@@ -180,6 +211,8 @@ function openModal() {
     document.getElementById('courseForm').action = storeUrl;
     document.getElementById('formMethod').value  = 'POST';
     document.getElementById('courseForm').reset();
+    document.getElementById('modalTitle').textContent = 'Add New Course';
+    document.getElementById('submitBtn').textContent  = 'Add Course';
     document.getElementById('modalBackdrop').classList.add('show');
 }
 
@@ -198,13 +231,39 @@ function editCourse(id, code, name, deptId, semester, fee, credits, type, status
     document.getElementById('fCredits').value    = credits;
     document.getElementById('fType').value       = type;
     document.getElementById('fStatus').value     = status;
+    document.getElementById('modalTitle').textContent = 'Edit Course';
+    document.getElementById('submitBtn').textContent  = 'Update Course';
     document.getElementById('modalBackdrop').classList.add('show');
 }
 
-function debounceSearch() {
-    clearTimeout(window._st);
-    window._st = setTimeout(() => document.getElementById('searchForm').submit(), 400);
+function filterTable() { applyFilters(); }
+function applyFilters() {
+    const query  = document.getElementById('searchInput').value.toLowerCase().trim();
+    const dept   = document.getElementById('fDept').value.toLowerCase();
+    const sem    = document.getElementById('fSem').value;
+    const type   = document.getElementById('fType').value;
+    const status = document.getElementById('fStatus').value;
+    let count = 0;
+    document.querySelectorAll('#courseTable tbody tr').forEach(row => {
+        const ok = (!query  || row.textContent.toLowerCase().includes(query))
+                && (!dept   || row.dataset.dept === dept)
+                && (!sem    || row.dataset.semester === sem)
+                && (!type   || row.dataset.type === type)
+                && (!status || row.dataset.status === status);
+        row.style.display = ok ? '' : 'none';
+        if (ok) count++;
+    });
+    document.getElementById('noResults').style.display = count === 0 ? '' : 'none';
+    const active = [dept, sem, type, status, query].filter(Boolean).length;
+    const badge  = document.getElementById('filterCount');
+    badge.textContent = active + ' filter' + (active > 1 ? 's' : '') + ' active';
+    badge.style.display = active > 0 ? 'inline' : 'none';
 }
+function clearFilters() {
+    ['searchInput','fDept','fSem','fType','fStatus'].forEach(id => document.getElementById(id).value = '');
+    applyFilters();
+}
+document.addEventListener('DOMContentLoaded', applyFilters);
 
 document.getElementById('modalBackdrop').addEventListener('click', function(e) {
     if (e.target === this) closeModal();

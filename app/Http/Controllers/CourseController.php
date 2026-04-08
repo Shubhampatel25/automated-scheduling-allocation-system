@@ -16,14 +16,14 @@ class CourseController extends Controller
     public function index(Request $request)
     {
         $search  = $request->get('search');
-        $courses = Course::with('department')
+        $courses = Course::with(['department', 'sections' => fn($q) => $q->orderByDesc('year')])
             ->when($search, fn($q) => $q
                 ->where('name', 'like', "%{$search}%")
                 ->orWhere('code', 'like', "%{$search}%")
             )
-            ->paginate(10)
-            ->withQueryString();
-        $departments = Department::all();
+            ->orderBy('name')
+            ->get();
+        $departments = Department::orderBy('name')->get();
         return view('admin.courses.index', compact('courses', 'departments'));
     }
 
@@ -36,7 +36,7 @@ class CourseController extends Controller
             'semester'      => 'nullable|integer|between:1,8',
             'fee'           => 'nullable|numeric|min:0',
             'credits'       => 'required|integer|between:1,6',
-            'type'          => 'required|in:lecture,lab,lecture_lab',
+            'type'          => 'required|in:theory,lab,hybrid',
             'status'        => 'required|in:active,inactive',
         ]);
 
@@ -76,7 +76,7 @@ class CourseController extends Controller
             'semester'      => 'nullable|integer|between:1,8',
             'fee'           => 'nullable|numeric|min:0',
             'credits'       => 'required|integer|between:1,6',
-            'type'          => 'required|in:lecture,lab,lecture_lab',
+            'type'          => 'required|in:theory,lab,hybrid',
             'status'        => 'required|in:active,inactive',
         ]);
 

@@ -1,8 +1,8 @@
 @extends('layouts.dashboard')
 
-@section('title', 'Conflicts')
+@section('title', 'Schedule Conflicts')
 @section('role-label', 'Admin Panel')
-@section('page-title', 'Conflicts')
+@section('page-title', 'Schedule Conflict Tracker')
 
 @section('sidebar-nav')
     @include('admin.partials.sidebar')
@@ -80,12 +80,34 @@
 @endpush
 
 @section('content')
+@if(session('success'))
+    <div style="background:#d1fae5;color:#065f46;padding:12px 18px;border-radius:8px;margin-bottom:16px;border:1px solid #a7f3d0;font-weight:500">
+        &#10003; {{ session('success') }}
+    </div>
+@endif
 <div class="manage-header">
     <div class="manage-title">
-        <h2>Conflicts</h2>
+        <h2>Schedule Conflict Tracker</h2>
         <div class="breadcrumb-nav">
             <a href="{{ route('admin.dashboard') }}">Dashboard</a> / Conflicts
         </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+        @if($unresolvedCount > 0)
+            <span style="background:#fee2e2;color:#b91c1c;padding:8px 16px;border-radius:8px;font-size:0.85rem;font-weight:600;border:1px solid #fca5a5;">
+                &#9888; {{ $unresolvedCount }} Unresolved {{ Str::plural('Conflict', $unresolvedCount) }}
+            </span>
+        @else
+            <span style="background:#d1fae5;color:#065f46;padding:8px 16px;border-radius:8px;font-size:0.85rem;font-weight:600;border:1px solid #a7f3d0;">
+                &#10003; All Conflicts Resolved
+            </span>
+        @endif
+        <form method="POST" action="{{ route('admin.conflicts.scan') }}" style="margin:0">
+            @csrf
+            <button type="submit" class="btn-filter" style="padding:8px 16px;font-size:0.85rem">
+                &#128270; Re-scan All Active Timetables
+            </button>
+        </form>
     </div>
 </div>
 
