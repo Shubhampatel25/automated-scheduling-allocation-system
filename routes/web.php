@@ -116,10 +116,15 @@ Route::middleware(['auth', 'role:hod'])->prefix('hod')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'hod'])->name('hod.dashboard');
 
     // Timetable generation & management
-    Route::post('/timetable/generate', [TimetableController::class, 'generate'])->name('hod.timetable.generate');
-    Route::post('/timetable/{timetable}/activate',   [TimetableController::class, 'activate'])->name('hod.timetable.activate');
-    Route::post('/timetable/{timetable}/deactivate', [TimetableController::class, 'deactivate'])->name('hod.timetable.deactivate');
-    Route::post('/timetable/{timetable}/delete',     [TimetableController::class, 'destroy'])->name('hod.timetable.delete');
+    Route::post('/timetable/generate',                 [TimetableController::class, 'generate'])->name('hod.timetable.generate');
+    Route::post('/timetable/{timetable}/activate',     [TimetableController::class, 'activate'])->name('hod.timetable.activate');
+    Route::post('/timetable/{timetable}/deactivate',   [TimetableController::class, 'deactivate'])->name('hod.timetable.deactivate');
+    Route::post('/timetable/{timetable}/delete',       [TimetableController::class, 'destroy'])->name('hod.timetable.delete');
+
+    // Manual slot editing (HOD only — full constraint re-validation on every save)
+    Route::get('/timetable/slot/{slot}/edit',   [TimetableController::class, 'editSlot'])->name('hod.timetable.slot.edit');
+    Route::put('/timetable/slot/{slot}',        [TimetableController::class, 'updateSlot'])->name('hod.timetable.slot.update');
+    Route::post('/timetable/slot/{slot}/delete',[TimetableController::class, 'destroySlot'])->name('hod.timetable.slot.destroy');
 
     // HOD Page routes
     Route::get('/courses',          [HodPagesController::class, 'courses'])->name('hod.courses');

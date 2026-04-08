@@ -20,6 +20,7 @@ class Course extends Model
         'prerequisite_mandatory',
         'fee',
         'credits',
+        'weekly_sessions',
         'type',
         'description',
         'status',

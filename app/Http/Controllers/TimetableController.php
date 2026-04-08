@@ -2,32 +2,43 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\Conflict;
-use App\Models\Course;
-use App\Models\CourseAssignment;
-use App\Models\CourseSection;
 use App\Models\Hod;
 use App\Models\Room;
-use App\Models\RoomAvailability;
-use App\Models\Teacher;
-use App\Models\TeacherAvailability;
 use App\Models\Timetable;
 use App\Models\TimetableSlot;
+use App\Services\TimetableConstraintService;
+use App\Services\TimetableConflictService;
+use App\Services\TimetableGenerationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * TimetableController
+ *
+ * Thin HTTP layer — all scheduling logic lives in the service layer.
+ *
+ * Responsibilities:
+ *   - Validate request input
+ *   - Verify HOD owns the requested department
+ *   - Delegate to TimetableGenerationService for draft creation
+ *   - Provide activate / deactivate / destroy for timetable lifecycle
+ *   - Provide updateSlot / destroySlot for manual slot editing with full
+ *     constraint validation and audit logging
+ */
 class TimetableController extends Controller
 {
-    private $timeSlots = [
-        ['start' => '08:00:00', 'end' => '09:30:00'],  // break 09:30–09:40
-        ['start' => '09:40:00', 'end' => '11:10:00'],  // break 11:10–11:20
-        ['start' => '11:20:00', 'end' => '12:50:00'],  // lunch 12:50–13:50
-        ['start' => '13:50:00', 'end' => '15:20:00'],  // break 15:20–15:30
-        ['start' => '15:30:00', 'end' => '17:00:00'],
-    ];
+    public function __construct(
+        private TimetableGenerationService $generationService,
+        private TimetableConstraintService $constraintService,
+        private TimetableConflictService   $conflictService,
+    ) {}
 
-    private $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    // ──────────────────────────────────────────────────────────────────────────
+    // Timetable generation
+    // ──────────────────────────────────────────────────────────────────────────
 
     public function generate(Request $request)
     {
@@ -39,269 +50,118 @@ class TimetableController extends Controller
             'course_id'     => 'nullable|integer|exists:courses,id',
         ]);
 
+        // ── HOD owns the requested department ─────────────────────────────────
         $hod = Hod::where('user_id', Auth::id())->first();
         if (!$hod) {
             return back()->with('error', 'HOD record not found for your account.');
         }
 
         $departmentId = (int) $request->department_id;
-        $term         = $request->term;
-        $year         = (int) $request->year;
-        $semester     = (int) $request->semester;
-        $courseId     = $request->course_id ? (int) $request->course_id : null;
+
+        if ($hod->department_id !== $departmentId) {
+            return back()->with('error', 'You can only generate timetables for your own department.');
+        }
 
         try {
-            return DB::transaction(function () use ($departmentId, $term, $year, $semester, $courseId) {
-
-                // ── Step 1: Fetch courses ────────────────────────────────────────
-                $courseQuery = Course::where('department_id', $departmentId)
-                    ->where('semester', $semester)
-                    ->where('status', 'active');
-
-                if ($courseId) {
-                    $courseQuery->where('id', $courseId);
-                }
-
-                $courses = $courseQuery->get();
-
-                if ($courses->isEmpty()) {
-                    return back()->with('error',
-                        "No active courses found for Semester {$semester} in the selected department. " .
-                        "Please add courses first.");
-                }
-
-                // ── Step 2: Fetch active teachers in the department ──────────────
-                $teachers = Teacher::where('department_id', $departmentId)
-                    ->where('status', 'active')
-                    ->get();
-
-                if ($teachers->isEmpty()) {
-                    return back()->with('error',
-                        "No active teachers found in this department. " .
-                        "Please add teachers before generating a timetable.");
-                }
-
-                // ── Step 3: Ensure course sections + assignments exist ────────────
-                $assignments  = collect();
-                $teacherIndex = 0;
-
-                foreach ($courses as $course) {
-                    // Find or create one section for this term/year
-                    $section = CourseSection::firstOrCreate(
-                        [
-                            'course_id'      => $course->id,
-                            'term'           => $term,
-                            'year'           => $year,
-                            'section_number' => 1,
-                        ],
-                        [
-                            'max_students'      => 60,
-                            'enrolled_students' => 30,
-                        ]
-                    );
-
-                    // Determine components based on actual course type in DB
-                    $components = match ($course->type) {
-                        'lab'         => ['lab'],
-                        'lecture_lab' => ['theory', 'lab'],
-                        default       => ['theory'], // lecture, theory, hybrid, etc.
-                    };
-
-                    foreach ($components as $component) {
-                        // Reuse existing assignment or auto-create one
-                        $assignment = CourseAssignment::where('course_section_id', $section->id)
-                            ->where('component', $component)
-                            ->first();
-
-                        if (!$assignment) {
-                            $teacher    = $teachers[$teacherIndex % $teachers->count()];
-                            $teacherIndex++;
-
-                            $assignment = CourseAssignment::create([
-                                'course_section_id' => $section->id,
-                                'teacher_id'        => $teacher->id,
-                                'component'         => $component,
-                            ]);
-                        }
-
-                        $assignment->load(['courseSection.course', 'teacher']);
-                        $assignments->push($assignment);
-                    }
-                }
-
-                // ── Step 4: Remove existing draft, archive active ────────────────
-                Timetable::where('department_id', $departmentId)
-                    ->where('term', $term)
-                    ->where('year', $year)
-                    ->where('semester', $semester)
-                    ->where('status', 'draft')
-                    ->each(function ($tt) {
-                        $tt->timetableSlots()->delete();
-                        $tt->conflicts()->delete();
-                        $tt->delete();
-                    });
-
-                Timetable::where('department_id', $departmentId)
-                    ->where('term', $term)
-                    ->where('year', $year)
-                    ->where('semester', $semester)
-                    ->where('status', 'active')
-                    ->update(['status' => 'archived']);
-
-                $timetable = Timetable::create([
-                    'department_id' => $departmentId,
-                    'term'          => $term,
-                    'year'          => $year,
-                    'semester'      => $semester,
-                    'status'        => 'draft',
-                    'generated_by'  => Auth::id(),
-                    'generated_at'  => now(),
-                    'conflicts_count' => 0,
-                ]);
-
-                // ── Step 5: Get usable rooms ────────────────────────────────────
-                $rooms = Room::where('status', 'available')
-                    ->orderBy('capacity', 'desc')
-                    ->get();
-
-                if ($rooms->isEmpty()) {
-                    return redirect()->route('hod.generate-timetable')
-                        ->with('warning',
-                            "Timetable record created but no available rooms found. " .
-                            "Add rooms (status = available) to schedule slots.");
-                }
-
-                // ── Step 6: Build availability lookups ──────────────────────────
-                $teacherAvail = $this->buildTeacherAvailability($assignments, $term, $year);
-                $roomAvail    = $this->buildRoomAvailability($rooms);
-
-                // ── Step 7: Schedule each assignment ────────────────────────────
-                // Larger classes get first pick of rooms
-                $assignments   = $assignments->sortByDesc(
-                    fn($a) => $a->courseSection->enrolled_students ?? 0
+            $result = DB::transaction(function () use ($request, $departmentId, $hod) {
+                return $this->generationService->generate(
+                    departmentId: $departmentId,
+                    term:         $request->term,
+                    year:         (int) $request->year,
+                    semester:     (int) $request->semester,
+                    generatedBy:  Auth::id(),
+                    courseId:     $request->course_id ? (int) $request->course_id : null,
                 );
-
-                $teacherSchedule = [];
-                $roomSchedule    = [];
-                $unscheduled     = [];
-
-                foreach ($assignments as $assignment) {
-                    $teacherId       = $assignment->teacher_id;
-                    $courseSectionId = $assignment->course_section_id;
-                    $component       = $assignment->component;
-                    $enrolled        = $assignment->courseSection->enrolled_students ?? 30;
-                    $courseType      = $assignment->courseSection->course->type ?? 'theory';
-                    $placed          = false;
-
-                    foreach ($this->days as $day) {
-                        if ($placed) break;
-
-                        foreach ($this->timeSlots as $slot) {
-                            if ($placed) break;
-
-                            // Teacher already placed at this day+time?
-                            if (isset($teacherSchedule[$teacherId][$day][$slot['start']])) {
-                                continue;
-                            }
-
-                            // Teacher availability window check
-                            if (!$this->isTeacherAvailable($teacherAvail, $teacherId, $day, $slot)) {
-                                continue;
-                            }
-
-                            // Find a suitable room
-                            foreach ($rooms as $room) {
-                                // Capacity
-                                if ($room->capacity < $enrolled) {
-                                    continue;
-                                }
-
-                                // Room type must match course/component type
-                                if (!$this->roomMatchesCourseType($room->type, $component, $courseType)) {
-                                    continue;
-                                }
-
-                                // Room not double-booked
-                                if (isset($roomSchedule[$room->id][$day][$slot['start']])) {
-                                    continue;
-                                }
-
-                                // Room availability window check
-                                if (!$this->isRoomAvailable($roomAvail, $room->id, $day, $slot)) {
-                                    continue;
-                                }
-
-                                // ✔ All checks passed — create slot
-                                TimetableSlot::create([
-                                    'timetable_id'     => $timetable->id,
-                                    'course_section_id' => $courseSectionId,
-                                    'teacher_id'       => $teacherId,
-                                    'room_id'          => $room->id,
-                                    'day_of_week'      => $day,
-                                    'start_time'       => $slot['start'],
-                                    'end_time'         => $slot['end'],
-                                    'component'        => $component,
-                                    'created_at'       => now(),
-                                ]);
-
-                                $teacherSchedule[$teacherId][$day][$slot['start']] = true;
-                                $roomSchedule[$room->id][$day][$slot['start']]     = true;
-                                $placed = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (!$placed) {
-                        $unscheduled[] = $assignment;
-                    }
-                }
-
-                // ── Step 8: Detect conflicts ────────────────────────────────────
-                $conflictCount = $this->detectConflicts($timetable);
-                $timetable->update(['conflicts_count' => $conflictCount]);
-
-                $total     = $assignments->count();
-                $scheduled = $total - count($unscheduled);
-
-                $msg = "Timetable generated! {$scheduled} of {$total} slots scheduled.";
-                if (count($unscheduled) > 0) {
-                    $msg .= " " . count($unscheduled) . " could not be placed — check room availability or add more rooms.";
-                }
-                if ($conflictCount > 0) {
-                    $msg .= " {$conflictCount} conflict(s) detected.";
-                }
-
-                return redirect()->route('hod.generate-timetable')->with('success', $msg);
             });
-
-        } catch (\Exception $ex) {
-            return back()->with('error', 'Generation failed: ' . $ex->getMessage());
+        } catch (\Exception $e) {
+            return back()->with('error', 'Generation failed: ' . $e->getMessage());
         }
+
+        // ── Build feedback message ─────────────────────────────────────────────
+        if ($result['timetable'] === null) {
+            // earlyExit — no timetable created
+            return back()->with('error', implode(' ', $result['messages']));
+        }
+
+        $msg = "Timetable draft generated: {$result['scheduled']} session(s) scheduled.";
+
+        if ($result['unscheduled'] > 0) {
+            $msg .= " {$result['unscheduled']} session(s) could not be placed — review Conflicts page.";
+        }
+
+        if ($result['conflicts'] > 0) {
+            $msg .= " {$result['conflicts']} conflict(s) detected.";
+        }
+
+        foreach ($result['messages'] as $warning) {
+            $msg .= " ⚠ {$warning}";
+        }
+
+        $level = ($result['unscheduled'] > 0 || $result['conflicts'] > 0) ? 'warning' : 'success';
+
+        return redirect()->route('hod.generate-timetable')->with($level, $msg);
     }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Timetable lifecycle
+    // ──────────────────────────────────────────────────────────────────────────
 
     public function activate(Timetable $timetable)
     {
-        abort_if($timetable->generated_by !== Auth::id(), 403);
+        $this->authoriseTimetable($timetable);
 
+        // Archive only the previously-active timetable for the SAME semester
+        // (other semesters' active timetables stay active — rooms/teachers are shared)
         Timetable::where('department_id', $timetable->department_id)
             ->where('term', $timetable->term)
             ->where('year', $timetable->year)
+            ->where('semester', $timetable->semester)
             ->where('status', 'active')
             ->update(['status' => 'archived']);
 
         $timetable->update(['status' => 'active']);
 
+        // Check for room/teacher conflicts with other semesters' active timetables
+        // (all semesters share the same physical rooms and teachers)
+        $crossConflicts = $this->conflictService->detectCrossTimetableConflicts($timetable);
+        if ($crossConflicts > 0) {
+            $timetable->update(['conflicts_count' => $timetable->conflicts()->count()]);
+        }
+
+        ActivityLog::create([
+            'user_id'     => Auth::id(),
+            'action'      => 'activate_timetable',
+            'entity_type' => 'timetable',
+            'entity_id'   => $timetable->id,
+            'details'     => "Activated timetable ID {$timetable->id}" .
+                             ($crossConflicts > 0 ? " — {$crossConflicts} cross-semester conflict(s) detected" : ''),
+            'created_at'  => now(),
+        ]);
+
+        $msg = 'Timetable activated.';
+        if ($crossConflicts > 0) {
+            $msg .= " Warning: {$crossConflicts} room/teacher conflict(s) found with other active semester timetables. Review the Conflicts page.";
+        }
+
         return redirect()->route('hod.generate-timetable')
-            ->with('success', 'Timetable activated successfully!');
+            ->with($crossConflicts > 0 ? 'warning' : 'success', $msg);
     }
 
     public function deactivate(Timetable $timetable)
     {
-        abort_if($timetable->generated_by !== Auth::id(), 403);
+        $this->authoriseTimetable($timetable);
         abort_if($timetable->status !== 'active', 422, 'Only active timetables can be deactivated.');
 
         $timetable->update(['status' => 'draft']);
+
+        ActivityLog::create([
+            'user_id'     => Auth::id(),
+            'action'      => 'deactivate_timetable',
+            'entity_type' => 'timetable',
+            'entity_id'   => $timetable->id,
+            'details'     => "Deactivated timetable ID {$timetable->id} → draft",
+            'created_at'  => now(),
+        ]);
 
         return redirect()->route('hod.generate-timetable')
             ->with('success', 'Timetable deactivated and moved back to draft.');
@@ -309,170 +169,226 @@ class TimetableController extends Controller
 
     public function destroy(Timetable $timetable)
     {
-        abort_if($timetable->generated_by !== Auth::id(), 403);
-        abort_if($timetable->status === 'active', 403, 'Cannot delete an active timetable.');
+        $this->authoriseTimetable($timetable);
+        abort_if($timetable->status === 'active', 403, 'Cannot delete an active timetable. Deactivate it first.');
 
-        $timetable->timetableSlots()->delete();
-        $timetable->conflicts()->delete();
-        $timetable->delete();
+        DB::transaction(function () use ($timetable) {
+            $timetable->conflicts()->delete();
+            $timetable->timetableSlots()->delete();
+            $timetable->delete();
+        });
+
+        ActivityLog::create([
+            'user_id'     => Auth::id(),
+            'action'      => 'delete_timetable',
+            'entity_type' => 'timetable',
+            'entity_id'   => $timetable->id,
+            'details'     => "Deleted timetable ID {$timetable->id}",
+            'created_at'  => now(),
+        ]);
 
         return redirect()->route('hod.generate-timetable')
             ->with('success', 'Timetable deleted.');
     }
 
-    // ── Room type matching ──────────────────────────────────────────────────────
+    // ──────────────────────────────────────────────────────────────────────────
+    // Manual slot editing
+    // ──────────────────────────────────────────────────────────────────────────
 
-    private function roomMatchesCourseType(string $roomType, string $component, string $courseType): bool
+    /**
+     * Show the edit form for a single slot (used by HOD to manually reschedule).
+     */
+    public function editSlot(TimetableSlot $slot)
     {
-        // Lab component → lab only
-        if ($component === 'lab') {
-            return $roomType === 'lab';
-        }
+        $this->authoriseSlot($slot);
 
-        // Theory component → classroom or seminar_hall
-        return in_array($roomType, ['classroom', 'seminar_hall']);
+        $slot->load(['timetable', 'courseSection.course', 'teacher', 'room']);
+
+        $rooms = Room::where('status', 'available')->orderBy('room_number')->get();
+
+        $days      = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+        $timeSlots = [
+            ['start' => '08:00:00', 'end' => '09:30:00'],
+            ['start' => '09:40:00', 'end' => '11:10:00'],
+            ['start' => '11:20:00', 'end' => '12:50:00'],
+            ['start' => '13:50:00', 'end' => '15:20:00'],
+            ['start' => '15:30:00', 'end' => '17:00:00'],
+        ];
+
+        return view('hod.edit_slot', compact('slot', 'rooms', 'days', 'timeSlots'));
     }
 
-    // ── Availability builders ───────────────────────────────────────────────────
-
-    private function buildTeacherAvailability($assignments, $term, $year)
+    /**
+     * Apply a manual reschedule to a single slot.
+     *
+     * Validates all hard constraints with the current slot excluded so that
+     * we do not conflict with the booking we are replacing.  Saves only if
+     * all checks pass; otherwise returns validation errors to the HOD.
+     */
+    public function updateSlot(Request $request, TimetableSlot $slot)
     {
-        $teacherIds    = $assignments->pluck('teacher_id')->unique();
-        $availabilities = TeacherAvailability::whereIn('teacher_id', $teacherIds)
-            ->where('term', $term)
-            ->where('year', $year)
-            ->get();
+        $this->authoriseSlot($slot);
 
-        $lookup = [];
-        foreach ($availabilities as $avail) {
-            $lookup[$avail->teacher_id][$avail->day_of_week][] = [
-                'start' => $avail->start_time,
-                'end'   => $avail->end_time,
-            ];
+        $request->validate([
+            'day_of_week' => 'required|in:Monday,Tuesday,Wednesday,Thursday,Friday',
+            'start_time'  => 'required|date_format:H:i:s',
+            'end_time'    => 'required|date_format:H:i:s|after:start_time',
+            'room_id'     => 'required|integer|exists:rooms,id',
+        ]);
+
+        $slot->loadMissing(['timetable', 'courseSection.course', 'teacher']);
+
+        $timetable   = $slot->timetable;
+        $term        = $timetable->term;
+        $year        = $timetable->year;
+        $day         = $request->day_of_week;
+        $startTime   = $request->start_time;
+        $endTime     = $request->end_time;
+        $roomId      = (int) $request->room_id;
+        $teacherId   = $slot->teacher_id;
+        $sectionId   = $slot->course_section_id;
+        $component   = $slot->component;
+        $enrolled    = (int) ($slot->courseSection->enrolled_students ?? 0);
+
+        $errors = [];
+
+        // ── Teacher availability ───────────────────────────────────────────────
+        if (!$this->constraintService->isTeacherAvailableForSlot($teacherId, $day, $startTime, $endTime, $term, $year)) {
+            $errors[] = 'Teacher is not available in that time window.';
         }
 
-        return $lookup;
-    }
-
-    private function buildRoomAvailability($rooms)
-    {
-        $roomIds        = $rooms->pluck('id');
-        $availabilities = RoomAvailability::whereIn('room_id', $roomIds)
-            ->where('status', 'available')
-            ->get();
-
-        $lookup = [];
-        foreach ($availabilities as $avail) {
-            $lookup[$avail->room_id][$avail->day_of_week][] = [
-                'start' => $avail->start_time,
-                'end'   => $avail->end_time,
-            ];
+        // ── Teacher overlap (exclude this slot) ───────────────────────────────
+        if ($this->constraintService->teacherHasOverlap($teacherId, $day, $startTime, $endTime, $term, $year, $timetable->id, $slot->id)) {
+            $errors[] = 'Teacher already has a class at the new time.';
         }
 
-        return $lookup;
-    }
-
-    // ── Availability checkers ───────────────────────────────────────────────────
-
-    private function isTeacherAvailable($teacherAvail, $teacherId, $day, $slot)
-    {
-        // No records at all → treat as always available
-        if (!isset($teacherAvail[$teacherId])) {
-            return true;
+        // ── Section overlap ───────────────────────────────────────────────────
+        if ($this->constraintService->sectionHasOverlap($sectionId, $day, $startTime, $endTime, $term, $year, $timetable->id, $slot->id)) {
+            $errors[] = 'This section already has a class at the new time.';
         }
 
-        if (!isset($teacherAvail[$teacherId][$day])) {
-            return false;
+        // ── Student cross-section overlap ─────────────────────────────────────
+        if ($this->constraintService->studentsHaveOverlap($sectionId, $day, $startTime, $endTime, $term, $year, $timetable->id, $slot->id)) {
+            $errors[] = 'One or more enrolled students would have a class conflict at the new time.';
         }
 
-        foreach ($teacherAvail[$teacherId][$day] as $window) {
-            if ($window['start'] <= $slot['start'] && $window['end'] >= $slot['end']) {
-                return true;
+        // ── Room validation ───────────────────────────────────────────────────
+        $room = Room::find($roomId);
+        if (!$room) {
+            $errors[] = 'Selected room does not exist.';
+        } else {
+            if ($room->capacity < $enrolled) {
+                $errors[] = "Room {$room->room_number} capacity ({$room->capacity}) is too small for {$enrolled} enrolled students.";
+            }
+
+            if (!$this->constraintService->roomMatchesCourseType($room->type, $component)) {
+                $errors[] = "Room type '{$room->type}' does not match component '{$component}'.";
+            }
+
+            if (!$this->constraintService->isRoomAvailableForSlot($roomId, $day, $startTime, $endTime)) {
+                $errors[] = "Room {$room->room_number} is not available in that time window.";
+            }
+
+            if ($this->constraintService->roomHasOverlap($roomId, $day, $startTime, $endTime, $term, $year, $timetable->id, $slot->id)) {
+                $errors[] = "Room {$room->room_number} is already booked at the new time.";
             }
         }
 
-        return false;
+        if (!empty($errors)) {
+            return back()->withErrors($errors)->withInput();
+        }
+
+        // ── All checks pass: apply the change ────────────────────────────────
+        $oldDetails = "day={$slot->day_of_week} {$slot->start_time}–{$slot->end_time} room={$slot->room_id}";
+
+        $slot->update([
+            'day_of_week' => $day,
+            'start_time'  => $startTime,
+            'end_time'    => $endTime,
+            'room_id'     => $roomId,
+        ]);
+
+        // Remove any old conflicts linked to this slot and re-run the scan
+        Conflict::where('slot_id_1', $slot->id)
+            ->orWhere('slot_id_2', $slot->id)
+            ->delete();
+
+        $timetable->load('timetableSlots');
+        $newConflicts = $this->conflictService->detectAndRecordConflicts($timetable);
+        $timetable->update(['conflicts_count' => $timetable->conflicts()->count()]);
+
+        ActivityLog::create([
+            'user_id'     => Auth::id(),
+            'action'      => 'update_timetable_slot',
+            'entity_type' => 'timetable_slot',
+            'entity_id'   => $slot->id,
+            'details'     => "Manual reschedule: {$oldDetails} → day={$day} {$startTime}–{$endTime} room={$roomId}",
+            'created_at'  => now(),
+        ]);
+
+        return redirect()->route('hod.view-timetable', ['timetable' => $timetable->id])
+            ->with('success', 'Slot rescheduled successfully.');
     }
 
-    private function isRoomAvailable($roomAvail, $roomId, $day, $slot)
+    /**
+     * Delete a single timetable slot (manual removal by HOD).
+     *
+     * Cleans up any conflicts referencing the slot and updates the count.
+     */
+    public function destroySlot(TimetableSlot $slot)
     {
-        // No records at all → treat as always available
-        if (!isset($roomAvail[$roomId])) {
-            return true;
-        }
+        $this->authoriseSlot($slot);
 
-        if (!isset($roomAvail[$roomId][$day])) {
-            return false;
-        }
+        $slot->loadMissing('timetable');
+        $timetable = $slot->timetable;
 
-        foreach ($roomAvail[$roomId][$day] as $window) {
-            if ($window['start'] <= $slot['start'] && $window['end'] >= $slot['end']) {
-                return true;
-            }
-        }
+        DB::transaction(function () use ($slot, $timetable) {
+            Conflict::where('slot_id_1', $slot->id)
+                ->orWhere('slot_id_2', $slot->id)
+                ->delete();
 
-        return false;
+            $slot->delete();
+
+            $timetable->update(['conflicts_count' => $timetable->conflicts()->count()]);
+        });
+
+        ActivityLog::create([
+            'user_id'     => Auth::id(),
+            'action'      => 'delete_timetable_slot',
+            'entity_type' => 'timetable_slot',
+            'entity_id'   => $slot->id,
+            'details'     => "Deleted slot from timetable ID {$timetable->id}",
+            'created_at'  => now(),
+        ]);
+
+        return redirect()->route('hod.view-timetable', ['timetable' => $timetable->id])
+            ->with('success', 'Slot removed from the timetable.');
     }
 
-    // ── Conflict detection ──────────────────────────────────────────────────────
+    // ──────────────────────────────────────────────────────────────────────────
+    // Authorisation helpers
+    // ──────────────────────────────────────────────────────────────────────────
 
-    private function detectConflicts(Timetable $timetable)
+    /**
+     * Abort with 403 if the current HOD does not own the timetable's department.
+     */
+    private function authoriseTimetable(Timetable $timetable): void
     {
-        $slots = TimetableSlot::where('timetable_id', $timetable->id)
-            ->with(['courseSection.course', 'teacher', 'room'])
-            ->get();
+        $hod = Hod::where('user_id', Auth::id())->first();
 
-        $conflictCount = 0;
+        abort_if(
+            !$hod || $hod->department_id !== $timetable->department_id,
+            403,
+            'You do not have permission to manage this timetable.'
+        );
+    }
 
-        // Group by day + start_time
-        $grouped = $slots->groupBy(fn($s) => $s->day_of_week . '_' . $s->start_time);
-
-        foreach ($grouped as $_key => $groupSlots) {
-            if ($groupSlots->count() < 2) {
-                continue;
-            }
-
-            // Teacher double-booking
-            $byTeacher = $groupSlots->groupBy('teacher_id');
-            foreach ($byTeacher as $teacherSlots) {
-                if ($teacherSlots->count() < 2) continue;
-
-                $first  = $teacherSlots->first();
-                $second = $teacherSlots->skip(1)->first();
-
-                Conflict::create([
-                    'timetable_id'  => $timetable->id,
-                    'conflict_type' => 'teacher_conflict',
-                    'description'   => "Teacher {$first->teacher->name} is double-booked on {$first->day_of_week} at {$first->start_time}",
-                    'slot_id_1'     => $first->id,
-                    'slot_id_2'     => $second->id,
-                    'status'        => 'unresolved',
-                    'detected_at'   => now(),
-                ]);
-                $conflictCount++;
-            }
-
-            // Room double-booking
-            $byRoom = $groupSlots->groupBy('room_id');
-            foreach ($byRoom as $roomSlots) {
-                if ($roomSlots->count() < 2) continue;
-
-                $first  = $roomSlots->first();
-                $second = $roomSlots->skip(1)->first();
-
-                Conflict::create([
-                    'timetable_id'  => $timetable->id,
-                    'conflict_type' => 'room_conflict',
-                    'description'   => "Room {$first->room->room_number} is double-booked on {$first->day_of_week} at {$first->start_time}",
-                    'slot_id_1'     => $first->id,
-                    'slot_id_2'     => $second->id,
-                    'status'        => 'unresolved',
-                    'detected_at'   => now(),
-                ]);
-                $conflictCount++;
-            }
-        }
-
-        return $conflictCount;
+    /**
+     * Abort with 403 if the current HOD does not own the slot's timetable's department.
+     */
+    private function authoriseSlot(TimetableSlot $slot): void
+    {
+        $slot->loadMissing('timetable');
+        $this->authoriseTimetable($slot->timetable);
     }
 }

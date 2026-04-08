@@ -45,12 +45,13 @@ table.timetable th.time-col { background:#4f46e5; width:110px; }
 table.timetable td { padding:6px; border:1px solid #e2e8f0; vertical-align:top; text-align:center; height:80px; }
 table.timetable td.time-label { background:#f8fafc; font-weight:600; color:#475569; font-size:.78rem; text-align:center; vertical-align:middle; border:1px solid #e2e8f0; }
 
-.slot-cell { background:#ede9fe; border-radius:8px; padding:6px 8px; height:100%; display:flex; flex-direction:column; justify-content:center; gap:2px; }
-.slot-cell.lab-cell  { background:#fef3c7; }
-.slot-cell .course-name { font-weight:700; color:#1e293b; font-size:.78rem; line-height:1.2; }
-.slot-cell .teacher  { font-size:.72rem; color:#6366f1; }
-.slot-cell .room     { font-size:.72rem; color:#64748b; }
-.slot-cell .comp-tag { display:inline-block; padding:1px 6px; border-radius:8px; font-size:.68rem; font-weight:700; background:rgba(99,102,241,.15); color:#4f46e5; margin-top:2px; }
+.slot-cell { background:#ede9fe; border-radius:8px; padding:7px 8px; height:100%; display:flex; flex-direction:column; justify-content:center; gap:3px; border-left:3px solid #6366f1; }
+.slot-cell.lab-cell  { background:#fef3c7; border-left-color:#d97706; }
+.slot-cell .course-name { font-weight:700; color:#1e293b; font-size:.79rem; line-height:1.25; }
+.slot-cell .teacher  { font-size:.72rem; color:#4f46e5; }
+.slot-cell .room     { display:inline-flex; align-items:center; gap:3px; background:#6366f1; color:#fff; border-radius:4px; padding:2px 6px; font-size:.7rem; font-weight:700; width:fit-content; }
+.slot-cell.lab-cell .room { background:#d97706; }
+.slot-cell .comp-tag { display:inline-block; padding:1px 6px; border-radius:8px; font-size:.68rem; font-weight:700; background:rgba(99,102,241,.15); color:#4f46e5; margin-top:1px; }
 .slot-cell.lab-cell .comp-tag { background:rgba(217,119,6,.15); color:#92400e; }
 
 .empty-slot { color:#cbd5e1; font-size:.75rem; }

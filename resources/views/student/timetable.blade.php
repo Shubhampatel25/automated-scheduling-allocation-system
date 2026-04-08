@@ -17,31 +17,52 @@
     <div class="card-body">
         <div class="timetable-container">
             @if($weeklySchedule->count() > 0)
+                @php
+                    // Build time periods dynamically from actual DB slot times — no hardcoding
+                    $periods = $weeklySchedule
+                        ->map(fn($s) => [
+                            'start' => substr($s->start_time, 0, 5),
+                            'end'   => substr($s->end_time,   0, 5),
+                            'key'   => substr($s->start_time, 0, 5),
+                        ])
+                        ->unique('key')
+                        ->sortBy('start')
+                        ->values();
+
+                    $days = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+                @endphp
                 <table class="timetable">
                     <thead>
                         <tr>
                             <th>Time</th>
-                            <th>Monday</th>
-                            <th>Tuesday</th>
-                            <th>Wednesday</th>
-                            <th>Thursday</th>
-                            <th>Friday</th>
+                            @foreach($days as $day)<th>{{ $day }}</th>@endforeach
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach(['08:00 - 09:30', '09:30 - 11:00', '11:00 - 12:30', '13:00 - 14:30', '14:30 - 16:00'] as $time)
+                        @foreach($periods as $period)
                         <tr>
-                            <td class="time-col">{{ $time }}</td>
-                            @foreach(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] as $day)
+                            <td class="time-col">{{ $period['start'] }} – {{ $period['end'] }}</td>
+                            @foreach($days as $day)
+                                @php
+                                    $slot = $weeklySchedule->first(
+                                        fn($s) => $s->day_of_week === $day
+                                               && substr($s->start_time, 0, 5) === $period['start']
+                                    );
+                                @endphp
                                 <td>
-                                    @php
-                                        [$startStr] = explode(' - ', $time);
-                                        $slot = $weeklySchedule->first(fn($s) => ($s->day_of_week ?? '') === $day && substr($s->start_time, 0, 5) === $startStr);
-                                    @endphp
                                     @if($slot)
-                                        <div class="slot">
+                                        @php
+                                            // Mark as retake if this course is in the student's net-failed list.
+                                            // $retakeCourseIds is [] for new students — no badge shown.
+                                            $isRetake = !empty($retakeCourseIds)
+                                                && in_array($slot->courseSection?->course?->id, $retakeCourseIds);
+                                        @endphp
+                                        <div class="slot" style="{{ $isRetake ? 'border-left:3px solid #dc2626;padding-left:6px;' : '' }}">
                                             <div class="course-name">{{ $slot->courseSection->course->name ?? '' }}</div>
-                                            <div class="room-name">{{ $slot->room->room_number ?? '' }}</div>
+                                            @if($isRetake)
+                                                <div style="font-size:0.62rem;color:#dc2626;font-weight:700;letter-spacing:.04em;margin-bottom:1px;">&#8635; RETAKE</div>
+                                            @endif
+                                            <div class="room-name">&#127968; {{ $slot->room->room_number ?? '' }}</div>
                                             <div class="teacher-name">{{ $slot->teacher->name ?? '' }}</div>
                                         </div>
                                     @endif
