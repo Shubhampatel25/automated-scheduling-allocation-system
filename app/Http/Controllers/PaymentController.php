@@ -81,7 +81,13 @@ class PaymentController extends Controller
 
     /**
      * Handle Stripe redirect after successful payment.
-     * Verifies the session with Stripe before marking the fee as paid.
+     *
+     * Idempotency strategy (two-layer):
+     *   1. Early exit BEFORE calling Stripe if the fee is already marked paid
+     *      (avoids unnecessary Stripe API calls on page refresh).
+     *   2. DB::transaction + lockForUpdate inside the write path so that two
+     *      simultaneous refreshes cannot both slip through the status check and
+     *      double-record the payment.
      */
     public function success(Request $request, FeePayment $feePayment)
     {
@@ -96,6 +102,15 @@ class PaymentController extends Controller
                 ->with('error', 'Invalid payment session.');
         }
 
+        // ── Layer 1: Fast early exit — no Stripe call needed if already paid ──
+        // Refresh from DB to avoid stale model data from route-model binding.
+        $feePayment->refresh();
+        if ($feePayment->status === 'paid') {
+            return redirect()->route('student.dashboard')
+                ->with('success', 'Your fee has already been recorded as paid.');
+        }
+
+        // ── Verify payment status with Stripe ─────────────────────────────────
         Stripe::setApiKey(config('services.stripe.secret'));
 
         try {
@@ -114,55 +129,71 @@ class PaymentController extends Controller
                 ->with('error', 'Could not verify payment with Stripe: ' . $e->getMessage());
         }
 
-        // Prevent double-processing if already paid
-        if ($feePayment->status === 'paid') {
-            return redirect()->route('student.dashboard')
-                ->with('success', 'Your fee has already been recorded as paid.');
-        }
+        // ── Layer 2: Atomic DB write with pessimistic lock ────────────────────
+        // lockForUpdate ensures that if two requests reach this point at the
+        // same time (e.g., rapid refresh), only one can hold the row lock.
+        // The second request will see status='paid' after the lock is released
+        // and exit without double-recording.
+        $redirectPayload = DB::transaction(function () use ($feePayment, $paymentType, $paidAmount) {
+            $fresh = FeePayment::lockForUpdate()->find($feePayment->id);
 
-        $totalAmount    = (float) $feePayment->amount;
-        $alreadyPaid    = (float) ($feePayment->paid_amount ?? 0);
+            // Re-check inside the lock — handles the concurrent-request race
+            if ($fresh->status === 'paid') {
+                return ['route' => 'student.dashboard', 'type' => 'success',
+                        'msg'   => 'Your fee has already been recorded as paid.'];
+            }
 
-        if ($paymentType === 'full') {
+            $totalAmount = (float) $fresh->amount;
+            $alreadyPaid = (float) ($fresh->paid_amount ?? 0);
+
+            if ($paymentType === 'full') {
+                DB::table('fee_payments')
+                    ->where('id', $fresh->id)
+                    ->update([
+                        'status'      => 'paid',
+                        'paid_amount' => $totalAmount,
+                        'paid_at'     => DB::raw('NOW()'),
+                    ]);
+
+                return ['route' => 'student.dashboard', 'type' => 'success',
+                        'msg'   => 'Payment of $' . number_format($totalAmount, 2)
+                                   . ' received via Stripe! You can now register for courses.'];
+            }
+
+            // Partial payment — accumulate on top of any previous payments
+            $newTotal = $alreadyPaid + $paidAmount;
+
+            if ($newTotal >= $totalAmount) {
+                // Accumulated total now covers the full amount — mark fully paid
+                DB::table('fee_payments')
+                    ->where('id', $fresh->id)
+                    ->update([
+                        'status'      => 'paid',
+                        'paid_amount' => $totalAmount,
+                        'paid_at'     => DB::raw('NOW()'),
+                    ]);
+
+                return ['route' => 'student.dashboard', 'type' => 'success',
+                        'msg'   => 'Payment complete! Total $' . number_format($totalAmount, 2)
+                                   . ' received. You can now register for courses.'];
+            }
+
             DB::table('fee_payments')
-                ->where('id', $feePayment->id)
+                ->where('id', $fresh->id)
                 ->update([
-                    'status'      => 'paid',
-                    'paid_amount' => $totalAmount,
+                    'status'      => 'partial',
+                    'paid_amount' => $newTotal,
                     'paid_at'     => DB::raw('NOW()'),
                 ]);
 
-            return redirect()->route('student.dashboard')
-                ->with('success', 'Payment of $' . number_format($totalAmount, 2) . ' received via Stripe! You can now register for courses.');
-        }
+            $remaining = $totalAmount - $newTotal;
+            return ['route' => 'student.fee-payment', 'type' => 'success',
+                    'msg'   => 'Partial payment of $' . number_format($paidAmount, 2)
+                               . ' received. Remaining balance: $' . number_format($remaining, 2)
+                               . '. Full payment is required to register for courses.'];
+        });
 
-        // Partial payment — ADD to any previous payments
-        $newTotal = $alreadyPaid + $paidAmount;
-
-        if ($newTotal >= $totalAmount) {
-            // Accumulated payments now cover the full amount — mark fully paid
-            DB::table('fee_payments')
-                ->where('id', $feePayment->id)
-                ->update([
-                    'status'      => 'paid',
-                    'paid_amount' => $totalAmount,
-                    'paid_at'     => DB::raw('NOW()'),
-                ]);
-
-            return redirect()->route('student.dashboard')
-                ->with('success', 'Payment complete! Total $' . number_format($totalAmount, 2) . ' received. You can now register for courses.');
-        }
-
-        DB::table('fee_payments')
-            ->where('id', $feePayment->id)
-            ->update([
-                'status'      => 'partial',
-                'paid_amount' => $newTotal,
-                'paid_at'     => DB::raw('NOW()'),
-            ]);
-
-        $remaining = $totalAmount - $newTotal;
-        return redirect()->route('student.fee-payment')
-            ->with('success', 'Partial payment of $' . number_format($paidAmount, 2) . ' received. Remaining balance: $' . number_format($remaining, 2) . '. Full payment is required to register for courses.');
+        return redirect()->route($redirectPayload['route'])
+            ->with($redirectPayload['type'], $redirectPayload['msg']);
     }
 }

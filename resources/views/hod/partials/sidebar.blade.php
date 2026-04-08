@@ -22,13 +22,13 @@
 
 <div class="nav-section-title">Scheduling</div>
 <a href="{{ route('hod.generate-timetable') }}" class="nav-link {{ request()->routeIs('hod.generate-timetable') ? 'active' : '' }}">
-    <span class="icon">&#128197;</span> Generate Timetable
+    <span class="icon">&#9881;</span> Generate Timetable
 </a>
 <a href="{{ route('hod.view-timetable') }}" class="nav-link {{ request()->routeIs('hod.view-timetable') ? 'active' : '' }}">
     <span class="icon">&#128197;</span> View Timetable
 </a>
 <a href="{{ route('hod.department-timetable') }}" class="nav-link {{ request()->routeIs('hod.department-timetable') ? 'active' : '' }}">
-    <span class="icon">&#128197;</span> Department Timetable
+    <span class="icon">&#128203;</span> Department Timetable
 </a>
 <a href="{{ route('hod.approve-schedule') }}" class="nav-link {{ request()->routeIs('hod.approve-schedule') ? 'active' : '' }}">
     <span class="icon">&#128203;</span> Approve Schedule

@@ -16,8 +16,8 @@ class RoomController extends Controller
                 ->orWhere('building', 'like', "%{$search}%")
                 ->orWhere('type', 'like', "%{$search}%")
             )
-            ->paginate(10)
-            ->withQueryString();
+            ->orderBy('room_number')
+            ->get();
         return view('admin.rooms.index', compact('rooms'));
     }
 

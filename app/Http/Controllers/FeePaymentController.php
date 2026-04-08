@@ -176,6 +176,10 @@ class FeePaymentController extends Controller
 
     /**
      * Student self-payment: full or partial.
+     *
+     * Partial payments accumulate on top of any amount already paid so that
+     * a student who paid $100 on a $300 fee and then pays $150 more ends up
+     * with paid_amount = $250, not just $150.
      */
     public function studentPay(Request $request, FeePayment $feePayment)
     {
@@ -186,9 +190,17 @@ class FeePaymentController extends Controller
             abort(403, 'Unauthorized');
         }
 
+        if ($feePayment->status === 'paid') {
+            return redirect()->route('student.fee-payment')
+                ->with('error', 'This fee has already been paid in full.');
+        }
+
+        $totalAmount = (float) $feePayment->amount;
+        $remaining   = $totalAmount - (float) ($feePayment->paid_amount ?? 0);
+
         $request->validate([
             'payment_type' => 'required|in:full,partial',
-            'paid_amount'  => 'required_if:payment_type,partial|nullable|numeric|min:1|max:' . $feePayment->amount,
+            'paid_amount'  => 'required_if:payment_type,partial|nullable|numeric|min:1|max:' . $remaining,
         ]);
 
         if ($request->payment_type === 'full') {
@@ -196,7 +208,7 @@ class FeePaymentController extends Controller
                 ->where('id', $feePayment->id)
                 ->update([
                     'status'      => 'paid',
-                    'paid_amount' => $feePayment->amount,
+                    'paid_amount' => $totalAmount,
                     'paid_at'     => DB::raw('NOW()'),
                 ]);
 
@@ -204,15 +216,36 @@ class FeePaymentController extends Controller
                 ->with('success', 'Full payment recorded! You can now register for courses.');
         }
 
+        // Accumulate partial payment on top of what has already been paid
+        $alreadyPaid  = (float) ($feePayment->paid_amount ?? 0);
+        $newPaidTotal = $alreadyPaid + (float) $request->paid_amount;
+
+        if ($newPaidTotal >= $totalAmount) {
+            // Accumulated payments now cover the full amount
+            DB::table('fee_payments')
+                ->where('id', $feePayment->id)
+                ->update([
+                    'status'      => 'paid',
+                    'paid_amount' => $totalAmount,
+                    'paid_at'     => DB::raw('NOW()'),
+                ]);
+
+            return redirect()->route('student.dashboard')
+                ->with('success', 'Payment complete! Full amount of $' . number_format($totalAmount, 2) . ' received. You can now register for courses.');
+        }
+
         DB::table('fee_payments')
             ->where('id', $feePayment->id)
             ->update([
                 'status'      => 'partial',
-                'paid_amount' => $request->paid_amount,
+                'paid_amount' => $newPaidTotal,
                 'paid_at'     => DB::raw('NOW()'),
             ]);
 
-        return redirect()->route('student.dashboard')
-            ->with('success', 'Partial payment of $' . number_format($request->paid_amount, 2) . ' recorded. Full payment is required to register for courses.');
+        $newRemaining = $totalAmount - $newPaidTotal;
+        return redirect()->route('student.fee-payment')
+            ->with('success', 'Partial payment of $' . number_format((float) $request->paid_amount, 2)
+                . ' recorded. Remaining balance: $' . number_format($newRemaining, 2)
+                . '. Full payment is required to register for courses.');
     }
 }

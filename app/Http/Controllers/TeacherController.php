@@ -9,6 +9,7 @@ use App\Models\Department;
 use App\Models\Hod;
 use App\Models\Conflict;
 use App\Models\ActivityLog;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class TeacherController extends Controller
@@ -22,9 +23,9 @@ class TeacherController extends Controller
                 ->orWhere('email', 'like', "%{$search}%")
                 ->orWhere('employee_id', 'like', "%{$search}%")
             )
-            ->paginate(10)
-            ->withQueryString();
-        $departments = Department::all();
+            ->orderBy('name')
+            ->get();
+        $departments = Department::orderBy('name')->get();
         return view('admin.teachers.index', compact('teachers', 'departments'));
     }
 
@@ -39,25 +40,37 @@ class TeacherController extends Controller
 
         $username = strtolower(str_replace(' ', '.', $request->name)) . rand(100, 999);
 
-        $user = User::create([
-            'username' => $username,
-            'email'    => $request->email,
-            'password' => Hash::make('password'),
-            'role'     => 'professor',
-            'status'   => $request->status,
-        ]);
+        // Atomic: if Teacher creation fails, the User record is rolled back.
+        DB::transaction(function () use ($request, $username) {
+            $user = User::create([
+                'username' => $username,
+                'email'    => $request->email,
+                'password' => Hash::make('password'),
+                'role'     => 'professor',
+                'status'   => $request->status,
+            ]);
 
-        $empId = 'EMP' . str_pad($user->id, 4, '0', STR_PAD_LEFT);
+            $empId = 'EMP' . str_pad($user->id, 4, '0', STR_PAD_LEFT);
 
-        Teacher::create([
-            'user_id'       => $user->id,
-            'employee_id'   => $empId,
-            'name'          => $request->name,
-            'email'         => $request->email,
-            'department_id' => $request->department_id,
-            'status'        => $request->status,
-            'created_at'    => now(),
-        ]);
+            $teacher = Teacher::create([
+                'user_id'       => $user->id,
+                'employee_id'   => $empId,
+                'name'          => $request->name,
+                'email'         => $request->email,
+                'department_id' => $request->department_id,
+                'status'        => $request->status,
+                'created_at'    => now(),
+            ]);
+
+            ActivityLog::create([
+                'user_id'     => auth()->id(),
+                'action'      => 'create_teacher',
+                'entity_type' => 'teacher',
+                'entity_id'   => $teacher->id,
+                'details'     => "Admin created teacher emp_id={$empId} name={$request->name}",
+                'created_at'  => now(),
+            ]);
+        });
 
         return redirect()->route('admin.teachers.index')
             ->with('success', 'Teacher added. Default password: password');

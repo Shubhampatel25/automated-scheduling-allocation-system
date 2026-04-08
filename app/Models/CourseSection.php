@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\StudentCourseRegistration;
 
 class CourseSection extends Model
 {
@@ -44,5 +45,10 @@ class CourseSection extends Model
     {
         return $this->belongsToMany(Student::class, 'student_course_registrations')
                     ->withPivot('status', 'registered_at');
+    }
+
+    public function studentCourseRegistrations()
+    {
+        return $this->hasMany(StudentCourseRegistration::class);
     }
 }

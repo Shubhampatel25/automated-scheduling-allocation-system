@@ -107,7 +107,8 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
 
     // Scheduling & System pages
     Route::get('/schedule',  [DashboardController::class, 'schedule'])->name('admin.schedule');
-    Route::get('/conflicts', [DashboardController::class, 'conflicts'])->name('admin.conflicts');
+    Route::get('/conflicts',      [DashboardController::class, 'conflicts'])->name('admin.conflicts');
+    Route::post('/conflicts/scan', [DashboardController::class, 'scanConflicts'])->name('admin.conflicts.scan');
     Route::get('/activity',  [DashboardController::class, 'activity'])->name('admin.activity');
 });
 

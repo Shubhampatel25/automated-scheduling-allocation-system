@@ -52,4 +52,9 @@ class Student extends Model
     {
         return $this->hasMany(FeePayment::class);
     }
+
+    public function semesterHistory()
+    {
+        return $this->hasMany(StudentSemesterHistory::class)->orderBy('semester');
+    }
 }

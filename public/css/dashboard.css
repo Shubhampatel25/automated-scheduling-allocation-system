@@ -345,6 +345,26 @@ body {
     color: #667eea;
 }
 
+.status-draft {
+    background: rgba(156, 163, 175, 0.15);
+    color: #6b7280;
+}
+
+.status-approved {
+    background: rgba(16, 185, 129, 0.12);
+    color: #059669;
+}
+
+.status-resolved {
+    background: rgba(16, 185, 129, 0.12);
+    color: #059669;
+}
+
+.status-unresolved {
+    background: rgba(231, 76, 60, 0.12);
+    color: #e74c3c;
+}
+
 /* Timetable Grid */
 .timetable-container {
     overflow-x: auto;
@@ -566,17 +586,26 @@ body {
 .empty-state {
     text-align: center;
     padding: 40px 20px;
-    color: #999;
+    color: #9ca3af;
 }
 
 .empty-state .empty-icon {
-    font-size: 48px;
-    margin-bottom: 15px;
-    opacity: 0.4;
+    font-size: 42px;
+    margin-bottom: 12px;
+    opacity: 0.35;
+    display: block;
 }
 
 .empty-state p {
     font-size: 14px;
+    color: #9ca3af;
+    margin: 0;
+}
+
+.empty-state .empty-hint {
+    font-size: 12px;
+    color: #c4c9d4;
+    margin-top: 6px;
 }
 
 /* Full-width card */

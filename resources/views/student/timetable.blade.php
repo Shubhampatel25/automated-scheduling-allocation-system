@@ -9,10 +9,19 @@
 @endsection
 
 @section('content')
+@if(isset($timetableIsDraft) && $timetableIsDraft)
+<div style="background:#fef3c7;color:#92400e;padding:11px 16px;border-radius:8px;margin-bottom:16px;border:1px solid #fde68a;font-size:0.87rem;display:flex;align-items:center;gap:10px;">
+    <span style="font-size:1rem;">&#9888;</span>
+    <span><strong>Draft Schedule</strong> &mdash; Your timetable is pending final approval by your HOD. Times or rooms may still change.</span>
+</div>
+@endif
 <div class="dashboard-card">
     <div class="card-header">
-        <h3>My Weekly Timetable &mdash; Semester {{ $semester }}</h3>
-        <span class="badge badge-warning">Week View</span>
+        <div>
+            <h3 style="margin:0;">My Weekly Timetable &mdash; Semester {{ $semester }}</h3>
+            <p style="margin:4px 0 0;font-size:0.78rem;color:#6b7280;">{{ now()->format('F Y') }} &bull; {{ now()->format('l') }} Today</p>
+        </div>
+        <span class="badge badge-warning">&#128197; Week View</span>
     </div>
     <div class="card-body">
         <div class="timetable-container">
@@ -75,7 +84,11 @@
             @else
                 <div class="empty-state">
                     <div class="empty-icon">&#128197;</div>
-                    <p>No timetable generated yet. <a href="{{ route('student.register-courses') }}" style="color:#4f46e5">Enroll in courses first &rarr;</a></p>
+                    <p>No timetable available for Semester {{ $semester }} yet.</p>
+                    <p class="empty-hint" style="margin-top:8px;">
+                        <a href="{{ route('student.register-courses') }}" style="color:#6366f1;font-weight:600;">Register for courses first</a>
+                        &mdash; your timetable will appear once a schedule is published.
+                    </p>
                 </div>
             @endif
         </div>
