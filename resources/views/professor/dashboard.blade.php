@@ -14,7 +14,7 @@
     <a href="#section-courses" class="nav-link">
         <span class="icon">&#128218;</span> My Courses
     </a>
-    <a href="#section-timetable" class="nav-link">
+    <a href="{{ route('professor.timetable') }}" class="nav-link">
         <span class="icon">&#128197;</span> My Timetable
     </a>
     <a href="#section-today" class="nav-link">

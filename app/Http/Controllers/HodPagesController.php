@@ -13,6 +13,7 @@ use App\Models\Timetable;
 use App\Models\TimetableSlot;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class HodPagesController extends Controller
 {
@@ -181,28 +182,36 @@ class HodPagesController extends Controller
         return response()->json($courses);
     }
 
-    // ─── 3. View Timetable ───────────────────────────────────────────────────
+    // ─── 3. View Timetable (HOD's own teaching schedule) ────────────────────
+    //
+    // Shows only the slots where the HOD themselves is the assigned teacher,
+    // across ALL active timetables (all semesters) in one combined grid.
+    // No dropdown selector needed — everything visible at once.
 
     public function viewTimetable(Request $request)
     {
-        $departmentId = $this->getDepartmentId();
+        $hod = Hod::where('user_id', Auth::id())->with(['teacher.department'])->first();
 
-        $timetables = Timetable::where('generated_by', Auth::id())
-            ->latest('generated_at')
-            ->get();
+        $teacher   = $hod?->teacher;
+        $teacherId = $teacher?->id;
 
-        $selectedId = $request->timetable_id
-            ?? ($timetables->firstWhere('status', 'active')?->id ?? $timetables->first()?->id);
-
-        $selectedTimetable = $selectedId ? Timetable::find($selectedId) : null;
-
-        $timetableSlots = $selectedId
-            ? TimetableSlot::where('timetable_id', $selectedId)
-                ->with(['courseSection.course', 'teacher', 'room'])
+        // All active slots where THIS HOD is the assigned teacher
+        $timetableSlots = $teacherId
+            ? TimetableSlot::where('teacher_id', $teacherId)
+                ->whereHas('timetable', fn($q) => $q->where('status', 'active'))
+                ->with(['courseSection.course', 'timetable', 'room'])
                 ->get()
             : collect();
 
-        return view('hod.view_timetable', compact('timetables', 'selectedTimetable', 'timetableSlots'));
+        // Stats
+        $classesPerWeek = $timetableSlots->count();
+        $hoursPerWeek   = round($timetableSlots->sum(
+            fn($s) => (strtotime($s->end_time) - strtotime($s->start_time)) / 3600
+        ), 1);
+
+        return view('hod.view_timetable', compact(
+            'teacher', 'timetableSlots', 'classesPerWeek', 'hoursPerWeek'
+        ));
     }
 
     // ─── 4. Faculty Workload ─────────────────────────────────────────────────

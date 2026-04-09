@@ -17,6 +17,9 @@ use App\Http\Controllers\FeePaymentController;
 use App\Http\Controllers\HodPagesController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ExcelImportController;
+use App\Http\Controllers\AdminTimetableController;
+use App\Http\Controllers\HodTimetableController;
+use App\Http\Controllers\PasswordOtpController;
 
 /*
 |--------------------------------------------------------------------------
@@ -34,11 +37,14 @@ Route::middleware('guest')->group(function () {
     // ✅ name the POST route
     Route::post('/login', [AuthController::class, 'login'])->name('login.submit');
 
-    // Password Reset Routes
-    Route::get('/forgot-password', [AuthController::class, 'showForgotPassword'])->name('password.request');
-    Route::post('/forgot-password', [AuthController::class, 'sendResetLink'])->name('password.email');
-    Route::get('/reset-password/{token}', [AuthController::class, 'showResetPassword'])->name('password.reset');
-    Route::post('/reset-password', [AuthController::class, 'resetPassword'])->name('password.update');
+    // OTP-based Password Reset (replaces link-based flow)
+    Route::get('/forgot-password',        [PasswordOtpController::class, 'showForgotPassword'])->name('password.request');
+    Route::post('/forgot-password/send',  [PasswordOtpController::class, 'sendOtp'])->name('password.otp.send');
+    Route::get('/forgot-password/verify', [PasswordOtpController::class, 'showVerifyOtp'])->name('password.otp.verify.form');
+    Route::post('/forgot-password/verify',[PasswordOtpController::class, 'verifyOtp'])->name('password.otp.verify');
+    Route::post('/forgot-password/resend',[PasswordOtpController::class, 'resendOtp'])->name('password.otp.resend');
+    Route::get('/reset-password',         [PasswordOtpController::class, 'showResetPassword'])->name('password.otp.reset.form');
+    Route::post('/reset-password',        [PasswordOtpController::class, 'resetPassword'])->name('password.otp.reset');
 });
 
 // Logout Route (requires authentication)
@@ -105,6 +111,11 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::get('/excel-import/counts',    [ExcelImportController::class, 'counts'])->name('admin.excel-import.counts');
     Route::post('/excel-import/truncate', [ExcelImportController::class, 'truncate'])->name('admin.excel-import.truncate');
 
+    // Admin: view timetables for any student / teacher / HOD department
+    Route::get('/students/{student}/timetable',  [AdminTimetableController::class, 'studentTimetable'])->name('admin.students.timetable');
+    Route::get('/teachers/{teacher}/timetable',  [AdminTimetableController::class, 'teacherTimetable'])->name('admin.teachers.timetable');
+    Route::get('/hods/{hod}/timetable',          [AdminTimetableController::class, 'hodTimetable'])->name('admin.hods.timetable');
+
     // Scheduling & System pages
     Route::get('/schedule',  [DashboardController::class, 'schedule'])->name('admin.schedule');
     Route::get('/conflicts',      [DashboardController::class, 'conflicts'])->name('admin.conflicts');
@@ -144,11 +155,19 @@ Route::middleware(['auth', 'role:hod'])->prefix('hod')->group(function () {
     Route::get('/approve-schedule',     [HodPagesController::class, 'approveSchedule'])->name('hod.approve-schedule');
     Route::get('/department-timetable', [HodPagesController::class, 'departmentTimetable'])->name('hod.department-timetable');
     Route::get('/department-report',    [HodPagesController::class, 'departmentReport'])->name('hod.department-report');
+
+    // HOD: view timetable for own-department students and teachers
+    Route::get('/students',                              [HodTimetableController::class, 'students'])->name('hod.students');
+    Route::get('/students/{student}/timetable',         [HodTimetableController::class, 'studentTimetable'])->name('hod.students.timetable');
+    Route::get('/teachers/{teacher}/timetable',         [HodTimetableController::class, 'teacherTimetable'])->name('hod.teachers.timetable');
 });
 
 // Professor Routes
 Route::middleware(['auth', 'role:professor'])->prefix('professor')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'professor'])->name('professor.dashboard');
+
+    // Dedicated timetable page (all active semesters, no filter)
+    Route::get('/timetable', [ProfessorController::class, 'timetable'])->name('professor.timetable');
 
     // Students page
     Route::get('/students', [ProfessorController::class, 'students'])->name('professor.students');

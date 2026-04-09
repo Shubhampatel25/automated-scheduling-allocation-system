@@ -1,11 +1,32 @@
 @extends('layouts.dashboard')
 
 @section('title', 'My Teaching Timetable')
-@section('role-label', 'Head of Department')
+@section('role-label', 'Professor Panel')
 @section('page-title', 'My Teaching Timetable')
 
 @section('sidebar-nav')
-    @include('hod.partials.sidebar')
+    <div class="nav-section-title">Main</div>
+    <a href="{{ route('professor.dashboard') }}" class="nav-link">
+        <span class="icon">&#9776;</span> Dashboard
+    </a>
+
+    <div class="nav-section-title">Teaching</div>
+    <a href="{{ route('professor.timetable') }}" class="nav-link active">
+        <span class="icon">&#128197;</span> My Timetable
+    </a>
+    <a href="{{ route('professor.students') }}" class="nav-link">
+        <span class="icon">&#128101;</span> My Students
+    </a>
+
+    <div class="nav-section-title">Availability</div>
+    <a href="{{ route('professor.availability') }}" class="nav-link">
+        <span class="icon">&#128336;</span> Set Availability
+    </a>
+
+    <div class="nav-section-title">Account</div>
+    <a href="{{ route('professor.dashboard') }}#section-profile" class="nav-link">
+        <span class="icon">&#128100;</span> My Profile
+    </a>
 @endsection
 
 @section('content')
@@ -13,10 +34,12 @@
 <style>
 @media print { .no-print { display:none !important; } }
 
-.page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
-.page-header h2 { font-size:1.35rem; font-weight:700; color:#1e293b; margin:0; }
 .breadcrumb { font-size:.82rem; color:#64748b; margin-bottom:14px; }
 .breadcrumb a { color:#6366f1; text-decoration:none; }
+.page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
+.page-header h2 { font-size:1.35rem; font-weight:700; color:#1e293b; margin:0; }
+.btn-print { padding:8px 20px; background:#6366f1; color:#fff; border:none; border-radius:8px; font-size:.85rem; font-weight:600; cursor:pointer; }
+.btn-print:hover { background:#4f46e5; }
 
 .meta-bar { display:flex; gap:24px; flex-wrap:wrap; background:#fff; border-radius:10px;
             padding:16px 22px; margin-bottom:22px; box-shadow:0 2px 8px rgba(0,0,0,.06); }
@@ -24,11 +47,6 @@
                   letter-spacing:.06em; margin-bottom:2px; }
 .meta-item .val { font-size:.95rem; font-weight:700; color:#1e293b; }
 
-.btn-print { padding:8px 20px; background:#6366f1; color:#fff; border:none; border-radius:8px;
-             font-size:.85rem; font-weight:600; cursor:pointer; }
-.btn-print:hover { background:#4f46e5; }
-
-/* Timetable grid */
 .tt-wrapper { background:#fff; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.07);
               padding:22px; overflow-x:auto; }
 .tt-wrapper h3 { font-size:1.05rem; font-weight:700; color:#1e293b; margin:0 0 18px; }
@@ -42,7 +60,6 @@ table.tt td { border:1px solid #e2e8f0; padding:6px 8px; vertical-align:top; min
 table.tt td.time-col { background:#f8fafc; color:#64748b; font-weight:600; font-size:.78rem;
                        white-space:nowrap; padding:10px 14px; }
 
-/* Slot card */
 .slot-card { border-radius:7px; padding:8px 10px; border-left:3px solid #6366f1;
              background:#eef2ff; margin-bottom:4px; }
 .slot-card.lab-slot { background:#fef9c3; border-left-color:#d97706; }
@@ -57,18 +74,17 @@ table.tt td.time-col { background:#f8fafc; color:#64748b; font-weight:600; font-
 .badge-theory { background:#e0f2fe; color:#0369a1; }
 .badge-lab    { background:#fef3c7; color:#92400e; }
 
-.empty-state { text-align:center; padding:60px 20px; color:#94a3b8; }
-.empty-state .ei { font-size:3rem; margin-bottom:12px; }
-
-/* Summary chips */
 .summary-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px; }
 .chip { background:#f1f5f9; border-radius:20px; padding:5px 14px; font-size:.8rem;
         font-weight:600; color:#475569; }
 .chip strong { color:#1e293b; }
+
+.empty-state { text-align:center; padding:60px 20px; color:#94a3b8; }
+.empty-state .ei { font-size:3rem; margin-bottom:12px; }
 </style>
 
 <div class="breadcrumb no-print">
-    <a href="{{ route('hod.dashboard') }}">Dashboard</a> / My Teaching Timetable
+    <a href="{{ route('professor.dashboard') }}">Dashboard</a> / My Teaching Timetable
 </div>
 
 <div class="page-header">
@@ -107,7 +123,6 @@ table.tt td.time-col { background:#f8fafc; color:#64748b; font-weight:600; font-
     @php
         $days = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
 
-        // Build dynamic time periods from actual slot times across all semesters
         $periods = $timetableSlots
             ->map(fn($s) => [
                 'start' => substr($s->start_time, 0, 5),
@@ -117,7 +132,6 @@ table.tt td.time-col { background:#f8fafc; color:#64748b; font-weight:600; font-
             ->sortBy('start')
             ->values();
 
-        // Unique semesters found across all slots (for summary chips)
         $semestersFound = $timetableSlots
             ->map(fn($s) => $s->timetable?->semester)
             ->filter()
@@ -152,7 +166,6 @@ table.tt td.time-col { background:#f8fafc; color:#64748b; font-weight:600; font-
                     @foreach($days as $day)
                         <td>
                             @php
-                                // A teacher can teach the same time slot in multiple semesters
                                 $daySlots = $timetableSlots->filter(
                                     fn($s) => $s->day_of_week === $day
                                            && substr($s->start_time, 0, 5) === $period['start']
@@ -190,9 +203,9 @@ table.tt td.time-col { background:#f8fafc; color:#64748b; font-weight:600; font-
     @else
         <div class="empty-state">
             <div class="ei">&#128197;</div>
-            <p>You have no active teaching slots scheduled yet.</p>
+            <p>No active teaching slots found for your account.</p>
             <p style="font-size:.85rem;color:#94a3b8;margin-top:6px;">
-                Slots appear here once a timetable that includes you is activated.
+                Your schedule will appear here once the HOD activates a timetable that includes you.
             </p>
         </div>
     @endif

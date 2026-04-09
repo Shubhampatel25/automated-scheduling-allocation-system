@@ -221,6 +221,10 @@
                     <td>
                         <button class="link-edit" onclick="editStudent({{ $student->id }}, '{{ addslashes($student->name) }}', '{{ $student->roll_no }}', '{{ $student->department_id }}', '{{ $student->semester }}')">Edit</button>
                         <span class="sep"> | </span>
+                        <a href="{{ route('admin.students.timetable', $student->id) }}"
+                           style="color:#6366f1;font-size:0.82rem;font-weight:600;text-decoration:none;white-space:nowrap;"
+                           title="View timetable for {{ $student->name }}">&#128197; Timetable</a>
+                        <span class="sep"> | </span>
                         <form method="POST" action="{{ route('admin.students.destroy', $student->id) }}" style="display:inline" onsubmit="return confirm('Delete this student?')">
                             @csrf @method('DELETE')
                             <button type="submit" class="link-del">Delete</button>
@@ -412,6 +416,36 @@ function editStudent(id, name, roll, deptId, sem) {
     document.getElementById('modalBackdrop').classList.add('show');
 }
 
+// ── Filter persistence via sessionStorage ────────────────────────────────
+// Filters are saved every time they change and restored when the page loads
+// (e.g. after browser Back). Cleared only when user explicitly clicks Clear.
+const FILTER_KEY = 'adminStudentFilters_v1';
+
+function saveFilters() {
+    try {
+        sessionStorage.setItem(FILTER_KEY, JSON.stringify({
+            search: document.getElementById('searchInput').value,
+            dept:   document.getElementById('filterDept').value,
+            sem:    document.getElementById('filterSem').value,
+            result: document.getElementById('filterResult').value,
+            term:   document.getElementById('filterTerm').value,
+        }));
+    } catch(e) {}
+}
+
+function restoreFilters() {
+    try {
+        const saved = sessionStorage.getItem(FILTER_KEY);
+        if (!saved) return;
+        const s = JSON.parse(saved);
+        document.getElementById('searchInput').value  = s.search || '';
+        document.getElementById('filterDept').value   = s.dept   || '';
+        document.getElementById('filterSem').value    = s.sem    || '';
+        document.getElementById('filterResult').value = s.result || '';
+        document.getElementById('filterTerm').value   = s.term   || '';
+    } catch(e) {}
+}
+
 function filterTable() { applyFilters(); }
 
 function applyFilters() {
@@ -440,6 +474,8 @@ function applyFilters() {
     const badge  = document.getElementById('filterCount');
     badge.textContent = active + ' filter' + (active > 1 ? 's' : '') + ' active';
     badge.style.display = active > 0 ? 'inline' : 'none';
+
+    saveFilters(); // persist state after every filter change
 }
 
 function clearFilters() {
@@ -448,10 +484,14 @@ function clearFilters() {
     document.getElementById('filterSem').value    = '';
     document.getElementById('filterResult').value = '';
     document.getElementById('filterTerm').value   = '';
+    try { sessionStorage.removeItem(FILTER_KEY); } catch(e) {}
     applyFilters();
 }
 
-document.addEventListener('DOMContentLoaded', () => applyFilters());
+document.addEventListener('DOMContentLoaded', () => {
+    restoreFilters(); // put saved values back into the inputs
+    applyFilters();   // then apply them so the table reflects the restored state
+});
 
 document.getElementById('modalBackdrop').addEventListener('click', function(e) {
     if (e.target === this) closeModal();

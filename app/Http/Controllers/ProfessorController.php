@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Teacher;
 use App\Models\CourseAssignment;
 use App\Models\TeacherAvailability;
+use App\Models\TimetableSlot;
 use App\Models\Student;
 use Illuminate\Support\Facades\Auth;
 
@@ -41,6 +42,33 @@ class ProfessorController extends Controller
         }
 
         return view('professor.students', compact('myStudents', 'teacher', 'search'));
+    }
+
+    /**
+     * Dedicated timetable page — all active teaching slots for this professor,
+     * all semesters combined in one weekly grid. No filter required.
+     */
+    public function timetable()
+    {
+        $user      = Auth::user();
+        $teacher   = Teacher::where('user_id', $user->id)->with('department')->first();
+        $teacherId = $teacher?->id;
+
+        $timetableSlots = $teacherId
+            ? TimetableSlot::where('teacher_id', $teacherId)
+                ->whereHas('timetable', fn($q) => $q->where('status', 'active'))
+                ->with(['courseSection.course', 'timetable', 'room'])
+                ->get()
+            : collect();
+
+        $classesPerWeek = $timetableSlots->count();
+        $hoursPerWeek   = round($timetableSlots->sum(
+            fn($s) => (strtotime($s->end_time) - strtotime($s->start_time)) / 3600
+        ), 1);
+
+        return view('professor.timetable', compact(
+            'teacher', 'timetableSlots', 'classesPerWeek', 'hoursPerWeek'
+        ));
     }
 
     public function availability()

@@ -81,6 +81,10 @@
                     <td>
                         <button class="link-edit" onclick="editTeacher({{ $teacher->id }}, '{{ addslashes($teacher->name) }}', '{{ $teacher->email }}', '{{ $teacher->department_id }}', '{{ $teacher->status }}')">Edit</button>
                         <span class="sep"> | </span>
+                        <a href="{{ route('admin.teachers.timetable', $teacher->id) }}"
+                           style="color:#6366f1;font-size:0.82rem;font-weight:600;text-decoration:none;white-space:nowrap;"
+                           title="View timetable for {{ $teacher->name }}">&#128197; Timetable</a>
+                        <span class="sep"> | </span>
                         <form method="POST" action="{{ route('admin.teachers.destroy', $teacher->id) }}" style="display:inline" onsubmit="return confirm('Delete this teacher?')">
                             @csrf @method('DELETE')
                             <button type="submit" class="link-del">Delete</button>
@@ -173,11 +177,42 @@ function editTeacher(id, name, email, deptId, status) {
     document.getElementById('modalBackdrop').classList.add('show');
 }
 
+// ── Filter persistence ────────────────────────────────────────────────────
+const T_FILTER_KEY = 'adminTeacherFilters_v1';
+
+// The filter bar selects share IDs with the modal form. Scope by parent div
+// to always target the filter bar ones (they appear first in the DOM).
+function _tf(id) {
+    // querySelector picks first match — filter bar is above modal in DOM
+    return document.getElementById(id);
+}
+
+function saveTeacherFilters() {
+    try {
+        sessionStorage.setItem(T_FILTER_KEY, JSON.stringify({
+            search: document.getElementById('searchInput').value,
+            dept:   _tf('fDept').value,
+            status: _tf('fStatus').value,
+        }));
+    } catch(e) {}
+}
+
+function restoreTeacherFilters() {
+    try {
+        const saved = sessionStorage.getItem(T_FILTER_KEY);
+        if (!saved) return;
+        const s = JSON.parse(saved);
+        document.getElementById('searchInput').value = s.search || '';
+        _tf('fDept').value   = s.dept   || '';
+        _tf('fStatus').value = s.status || '';
+    } catch(e) {}
+}
+
 function filterTable() { applyFilters(); }
 function applyFilters() {
     const query  = document.getElementById('searchInput').value.toLowerCase().trim();
-    const dept   = document.getElementById('fDept').value.toLowerCase();
-    const status = document.getElementById('fStatus').value;
+    const dept   = _tf('fDept').value.toLowerCase();
+    const status = _tf('fStatus').value;
     let count = 0;
     document.querySelectorAll('#teacherTable tbody tr').forEach(row => {
         const ok = (!query  || row.textContent.toLowerCase().includes(query))
@@ -191,14 +226,19 @@ function applyFilters() {
     const badge  = document.getElementById('filterCount');
     badge.textContent = active + ' filter' + (active > 1 ? 's' : '') + ' active';
     badge.style.display = active > 0 ? 'inline' : 'none';
+    saveTeacherFilters();
 }
 function clearFilters() {
     document.getElementById('searchInput').value = '';
-    document.getElementById('fDept').value = '';
-    document.getElementById('fStatus').value = '';
+    _tf('fDept').value   = '';
+    _tf('fStatus').value = '';
+    try { sessionStorage.removeItem(T_FILTER_KEY); } catch(e) {}
     applyFilters();
 }
-document.addEventListener('DOMContentLoaded', applyFilters);
+document.addEventListener('DOMContentLoaded', () => {
+    restoreTeacherFilters();
+    applyFilters();
+});
 
 document.getElementById('modalBackdrop').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
