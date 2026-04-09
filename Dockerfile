@@ -88,9 +88,60 @@ RUN mkdir -p storage/framework/{sessions,views,cache} \
     && chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
-# Copy and configure the entrypoint
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+# Write the entrypoint script inline so no external file needs to be tracked
+RUN printf '%s\n' \
+    '#!/bin/bash' \
+    'set -e' \
+    '' \
+    'mkdir -p storage/framework/{sessions,views,cache} storage/logs bootstrap/cache' \
+    'chown -R www-data:www-data storage bootstrap/cache' \
+    'chmod -R 775 storage bootstrap/cache' \
+    '' \
+    'if [ -z "$APP_KEY" ]; then' \
+    '    export APP_KEY=$(php artisan key:generate --show --no-interaction)' \
+    'fi' \
+    '' \
+    'if [ ! -f .env ]; then' \
+    '    cat > .env <<ENVEOF' \
+    'APP_NAME=${APP_NAME:-Laravel}' \
+    'APP_ENV=${APP_ENV:-production}' \
+    'APP_KEY=${APP_KEY}' \
+    'APP_DEBUG=${APP_DEBUG:-false}' \
+    'APP_URL=${APP_URL:-http://localhost:8080}' \
+    'LOG_CHANNEL=${LOG_CHANNEL:-stack}' \
+    'LOG_LEVEL=${LOG_LEVEL:-error}' \
+    'DB_CONNECTION=${DB_CONNECTION:-mysql}' \
+    'DB_HOST=${DB_HOST:-127.0.0.1}' \
+    'DB_PORT=${DB_PORT:-3306}' \
+    'DB_DATABASE=${DB_DATABASE:-scheduling_system}' \
+    'DB_USERNAME=${DB_USERNAME:-root}' \
+    'DB_PASSWORD=${DB_PASSWORD:-}' \
+    'CACHE_DRIVER=${CACHE_DRIVER:-file}' \
+    'SESSION_DRIVER=${SESSION_DRIVER:-file}' \
+    'SESSION_LIFETIME=${SESSION_LIFETIME:-120}' \
+    'QUEUE_CONNECTION=${QUEUE_CONNECTION:-sync}' \
+    'FILESYSTEM_DISK=${FILESYSTEM_DISK:-local}' \
+    'MAIL_MAILER=${MAIL_MAILER:-smtp}' \
+    'MAIL_HOST=${MAIL_HOST:-localhost}' \
+    'MAIL_PORT=${MAIL_PORT:-587}' \
+    'MAIL_USERNAME=${MAIL_USERNAME:-}' \
+    'MAIL_PASSWORD=${MAIL_PASSWORD:-}' \
+    'MAIL_ENCRYPTION=${MAIL_ENCRYPTION:-tls}' \
+    'MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS:-hello@example.com}' \
+    'STRIPE_KEY=${STRIPE_KEY:-}' \
+    'STRIPE_SECRET=${STRIPE_SECRET:-}' \
+    'ENVEOF' \
+    'fi' \
+    '' \
+    'php artisan config:cache' \
+    'php artisan route:cache' \
+    'php artisan view:cache' \
+    'php artisan migrate --force --no-interaction' \
+    'php artisan storage:link --no-interaction 2>/dev/null || true' \
+    '' \
+    'exec "$@"' \
+    > /usr/local/bin/docker-entrypoint.sh \
+    && chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 8080
 
