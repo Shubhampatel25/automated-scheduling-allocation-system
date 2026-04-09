@@ -3,20 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Forgot Password - Automated Scheduling System</title>
+    <title>Reset Password - Automated Scheduling System</title>
     <link rel="stylesheet" href="{{ asset('css/login.css') }}">
 </head>
 <body>
     <div class="login-container">
         <div class="login-left">
             <h1>Automated Class Scheduling System</h1>
-            <p>Enter your registered email and we will send you a one-time verification code to reset your password securely.</p>
+            <p>Choose a strong new password. Your password must be at least 8 characters long.</p>
         </div>
 
         <div class="login-right">
             <div class="login-header">
-                <h2>Forgot Password</h2>
-                <p>Enter your email to receive a 6-digit OTP</p>
+                <h2>Set New Password</h2>
+                <p>{{ $email }}</p>
             </div>
 
             @if($errors->any())
@@ -27,27 +27,28 @@
                 </div>
             @endif
 
-            @if(session('otp_sent') && !$errors->any())
-                <div class="alert alert-success">
-                    If this email is registered, an OTP has been sent. Please check your inbox.
-                </div>
-            @endif
-
-            <form method="POST" action="{{ route('password.otp.send') }}">
+            <form method="POST" action="{{ route('password.otp.reset') }}">
                 @csrf
 
                 <div class="form-group">
-                    <label for="email">Email Address</label>
-                    <input type="email" id="email" name="email"
-                           value="{{ old('email') }}"
-                           required autofocus
-                           placeholder="Enter your registered email">
-                    @error('email')
+                    <label for="password">New Password</label>
+                    <input type="password" id="password" name="password"
+                           required autofocus minlength="8"
+                           placeholder="Minimum 8 characters">
+                    @error('password')
                         <span class="error-message">{{ $message }}</span>
                     @enderror
                 </div>
 
-                <button type="submit" class="login-btn">Send OTP</button>
+                <div class="form-group">
+                    <label for="password_confirmation">Confirm Password</label>
+                    <input type="password" id="password_confirmation"
+                           name="password_confirmation"
+                           required minlength="8"
+                           placeholder="Re-enter your new password">
+                </div>
+
+                <button type="submit" class="login-btn">Reset Password</button>
             </form>
 
             <div class="back-to-login">

@@ -62,6 +62,10 @@
                     <td>
                         <button class="link-edit" onclick="editHod({{ $hod->id }}, '{{ addslashes($hod->teacher->name ?? '') }}', '{{ $hod->teacher->email ?? '' }}', '{{ $hod->department_id }}', '{{ $hod->status }}')">Edit</button>
                         <span class="sep"> | </span>
+                        <a href="{{ route('admin.hods.timetable', $hod->id) }}"
+                           style="color:#6366f1;font-size:0.82rem;font-weight:600;text-decoration:none;white-space:nowrap;"
+                           title="View department timetable">&#128197; Timetable</a>
+                        <span class="sep"> | </span>
                         <form method="POST" action="{{ route('admin.hods.destroy', $hod->id) }}" style="display:inline" onsubmit="return confirm('Remove this HOD?')">
                             @csrf @method('DELETE')
                             <button type="submit" class="link-del">Delete</button>

@@ -7,6 +7,9 @@
 <a href="{{ route('hod.faculty-members') }}" class="nav-link {{ request()->routeIs('hod.faculty-members') ? 'active' : '' }}">
     <span class="icon">&#128100;</span> Faculty Members
 </a>
+<a href="{{ route('hod.students') }}" class="nav-link {{ request()->routeIs('hod.students', 'hod.students.timetable') ? 'active' : '' }}">
+    <span class="icon">&#127979;</span> Students
+</a>
 <a href="{{ route('hod.courses') }}" class="nav-link {{ request()->routeIs('hod.courses') ? 'active' : '' }}">
     <span class="icon">&#128218;</span> Courses
 </a>

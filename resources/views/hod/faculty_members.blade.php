@@ -185,6 +185,7 @@
                     <th>Assigned Courses</th>
                     <th>Schedule Load</th>
                     <th>Status</th>
+                    <th>Timetable</th>
                 </tr>
             </thead>
             <tbody>
@@ -221,6 +222,12 @@
                                 <span class="badge-inactive">Inactive</span>
                             @endif
                         </td>
+                        <td>
+                            <a href="{{ route('hod.teachers.timetable', $teacher->id) }}"
+                               style="display:inline-block;padding:5px 12px;background:#6366f1;color:#fff;border-radius:6px;font-size:.78rem;font-weight:600;text-decoration:none;white-space:nowrap;">
+                                &#128197; View
+                            </a>
+                        </td>
                     </tr>
                 @endforeach
             </tbody>
@@ -234,6 +241,27 @@
 </div>
 
 <script>
+const HOD_FAC_KEY = 'hodFacultyFilters_v1';
+
+function saveFacFilters() {
+    try {
+        sessionStorage.setItem(HOD_FAC_KEY, JSON.stringify({
+            search: document.getElementById('search-input').value,
+            status: document.getElementById('status-filter').value,
+        }));
+    } catch(e) {}
+}
+
+function restoreFacFilters() {
+    try {
+        const saved = sessionStorage.getItem(HOD_FAC_KEY);
+        if (!saved) return;
+        const s = JSON.parse(saved);
+        document.getElementById('search-input').value  = s.search || '';
+        document.getElementById('status-filter').value = s.status || 'all';
+    } catch(e) {}
+}
+
 function filterTable() {
     const search = document.getElementById('search-input').value.toLowerCase();
     const status = document.getElementById('status-filter').value;
@@ -244,7 +272,14 @@ function filterTable() {
         const matchStatus = status === 'all' || row.dataset.status === status;
         row.style.display = (matchSearch && matchStatus) ? '' : 'none';
     });
+
+    saveFacFilters();
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    restoreFacFilters();
+    filterTable();
+});
 </script>
 
 @endsection
