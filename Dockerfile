@@ -51,46 +51,76 @@ RUN mkdir -p storage/framework/{sessions,views,cache} storage/logs bootstrap/cac
     && chmod -R 775 storage bootstrap/cache
 
 # Write the startup script inline — no external file needed
-RUN printf '#!/bin/sh\nset -e\n\n\
-# Build .env from Railway-injected environment variables\n\
-cat > /var/www/html/.env <<ENVEOF\n\
-APP_NAME="${APP_NAME:-Laravel}"\n\
-APP_ENV="${APP_ENV:-production}"\n\
-APP_KEY="${APP_KEY}"\n\
-APP_DEBUG="${APP_DEBUG:-false}"\n\
-APP_URL="${APP_URL:-http://localhost:8080}"\n\
-LOG_CHANNEL="${LOG_CHANNEL:-stack}"\n\
-LOG_LEVEL="${LOG_LEVEL:-error}"\n\
-DB_CONNECTION="${DB_CONNECTION:-mysql}"\n\
-DB_HOST="${DB_HOST:-127.0.0.1}"\n\
-DB_PORT="${DB_PORT:-3306}"\n\
-DB_DATABASE="${DB_DATABASE:-scheduling_system}"\n\
-DB_USERNAME="${DB_USERNAME:-root}"\n\
-DB_PASSWORD="${DB_PASSWORD:-}"\n\
-CACHE_DRIVER="${CACHE_DRIVER:-file}"\n\
-SESSION_DRIVER="${SESSION_DRIVER:-file}"\n\
-SESSION_LIFETIME="${SESSION_LIFETIME:-120}"\n\
-QUEUE_CONNECTION="${QUEUE_CONNECTION:-sync}"\n\
-FILESYSTEM_DISK="${FILESYSTEM_DISK:-local}"\n\
-MAIL_MAILER="${MAIL_MAILER:-smtp}"\n\
-MAIL_HOST="${MAIL_HOST:-localhost}"\n\
-MAIL_PORT="${MAIL_PORT:-587}"\n\
-MAIL_USERNAME="${MAIL_USERNAME:-}"\n\
-MAIL_PASSWORD="${MAIL_PASSWORD:-}"\n\
-MAIL_ENCRYPTION="${MAIL_ENCRYPTION:-tls}"\n\
-MAIL_FROM_ADDRESS="${MAIL_FROM_ADDRESS:-hello@example.com}"\n\
-STRIPE_KEY="${STRIPE_KEY:-}"\n\
-STRIPE_SECRET="${STRIPE_SECRET:-}"\n\
-ENVEOF\n\
-\n\
-php artisan config:cache\n\
-php artisan route:cache\n\
-php artisan view:cache\n\
-php artisan migrate --force --no-interaction\n\
-php artisan storage:link --no-interaction 2>/dev/null || true\n\
-\n\
-exec apache2-foreground\n' \
-    > /usr/local/bin/start.sh \
+RUN { \
+    echo '#!/bin/sh'; \
+    echo 'set -e'; \
+    echo ''; \
+    echo '# ── Build .env from Railway-injected environment variables ──────────────────'; \
+    echo 'cat > /var/www/html/.env << ENVEOF'; \
+    echo 'APP_NAME="${APP_NAME:-Laravel}"'; \
+    echo 'APP_ENV="${APP_ENV:-production}"'; \
+    echo 'APP_KEY="${APP_KEY}"'; \
+    echo 'APP_DEBUG="${APP_DEBUG:-false}"'; \
+    echo 'APP_URL="${APP_URL:-http://localhost:8080}"'; \
+    echo 'LOG_CHANNEL="${LOG_CHANNEL:-stack}"'; \
+    echo 'LOG_LEVEL="${LOG_LEVEL:-error}"'; \
+    echo 'DB_CONNECTION="${DB_CONNECTION:-mysql}"'; \
+    echo 'DB_HOST="${DB_HOST:-127.0.0.1}"'; \
+    echo 'DB_PORT="${DB_PORT:-3306}"'; \
+    echo 'DB_DATABASE="${DB_DATABASE:-scheduling_system}"'; \
+    echo 'DB_USERNAME="${DB_USERNAME:-root}"'; \
+    echo 'DB_PASSWORD="${DB_PASSWORD:-}"'; \
+    echo 'CACHE_DRIVER="${CACHE_DRIVER:-file}"'; \
+    echo 'SESSION_DRIVER="${SESSION_DRIVER:-file}"'; \
+    echo 'SESSION_LIFETIME="${SESSION_LIFETIME:-120}"'; \
+    echo 'QUEUE_CONNECTION="${QUEUE_CONNECTION:-sync}"'; \
+    echo 'FILESYSTEM_DISK="${FILESYSTEM_DISK:-local}"'; \
+    echo 'MAIL_MAILER="${MAIL_MAILER:-smtp}"'; \
+    echo 'MAIL_HOST="${MAIL_HOST:-localhost}"'; \
+    echo 'MAIL_PORT="${MAIL_PORT:-587}"'; \
+    echo 'MAIL_USERNAME="${MAIL_USERNAME:-}"'; \
+    echo 'MAIL_PASSWORD="${MAIL_PASSWORD:-}"'; \
+    echo 'MAIL_ENCRYPTION="${MAIL_ENCRYPTION:-tls}"'; \
+    echo 'MAIL_FROM_ADDRESS="${MAIL_FROM_ADDRESS:-hello@example.com}"'; \
+    echo 'STRIPE_KEY="${STRIPE_KEY:-}"'; \
+    echo 'STRIPE_SECRET="${STRIPE_SECRET:-}"'; \
+    echo 'ENVEOF'; \
+    echo ''; \
+    echo '# ── Wait for MySQL (up to 60 s) using PHP PDO — no extra packages needed ────'; \
+    echo 'MAX_TRIES=30'; \
+    echo 'TRIES=0'; \
+    echo 'echo "Waiting for MySQL at ${DB_HOST:-127.0.0.1}:${DB_PORT:-3306}..."'; \
+    echo 'until php -r "'; \
+    echo '  \$h = getenv(\"DB_HOST\") ?: \"127.0.0.1\";'; \
+    echo '  \$p = getenv(\"DB_PORT\") ?: \"3306\";'; \
+    echo '  \$u = getenv(\"DB_USERNAME\") ?: \"root\";'; \
+    echo '  \$w = getenv(\"DB_PASSWORD\") ?: \"\";'; \
+    echo '  new PDO(\"mysql:host=\$h;port=\$p\", \$u, \$w);'; \
+    echo '" 2>/dev/null; do'; \
+    echo '  TRIES=$((TRIES + 1))'; \
+    echo '  if [ "$TRIES" -ge "$MAX_TRIES" ]; then'; \
+    echo '    echo "ERROR: MySQL unreachable after 60 s — starting Apache anyway."'; \
+    echo '    exec apache2-foreground'; \
+    echo '  fi'; \
+    echo '  echo "MySQL not ready, retry $TRIES/$MAX_TRIES in 2 s..."'; \
+    echo '  sleep 2'; \
+    echo 'done'; \
+    echo 'echo "MySQL is ready."'; \
+    echo ''; \
+    echo '# ── Artisan bootstrap ────────────────────────────────────────────────────────'; \
+    echo 'php artisan config:cache'; \
+    echo 'php artisan route:cache'; \
+    echo 'php artisan view:cache'; \
+    echo ''; \
+    echo '# Migrate — failures are logged but do NOT prevent Apache from starting'; \
+    echo 'php artisan migrate --force --no-interaction \'; \
+    echo '  || echo "WARNING: migrate failed — Apache will start with the existing schema."'; \
+    echo ''; \
+    echo 'php artisan storage:link --no-interaction 2>/dev/null || true'; \
+    echo ''; \
+    echo '# ── Hand off to Apache ───────────────────────────────────────────────────────'; \
+    echo 'exec apache2-foreground'; \
+} > /usr/local/bin/start.sh \
     && chmod +x /usr/local/bin/start.sh
 
 EXPOSE 8080
