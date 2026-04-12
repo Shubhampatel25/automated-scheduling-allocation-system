@@ -1,0 +1,52 @@
+worker_processes auto;
+error_log /dev/stderr warn;
+pid /tmp/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include      /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    sendfile        on;
+    keepalive_timeout 65;
+
+    access_log /dev/stdout;
+    error_log  /dev/stderr;
+
+    # Temp dirs writable by non-root
+    client_body_temp_path /tmp/client_temp;
+    proxy_temp_path       /tmp/proxy_temp;
+    fastcgi_temp_path     /tmp/fastcgi_temp;
+    uwsgi_temp_path       /tmp/uwsgi_temp;
+    scgi_temp_path        /tmp/scgi_temp;
+
+    server {
+        listen ${PORT};
+        server_name _;
+
+        root  /var/www/html/public;
+        index index.php;
+
+        # Laravel front-controller
+        location / {
+            try_files $uri $uri/ /index.php?$query_string;
+        }
+
+        # PHP via php-fpm
+        location ~ \.php$ {
+            fastcgi_pass            127.0.0.1:9000;
+            fastcgi_index           index.php;
+            fastcgi_param           SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+            include                 fastcgi_params;
+            fastcgi_read_timeout    300;
+        }
+
+        # Deny .htaccess access
+        location ~ /\.ht {
+            deny all;
+        }
+    }
+}
