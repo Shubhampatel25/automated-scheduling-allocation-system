@@ -56,14 +56,20 @@ class TimetableService
             ];
         }
 
-        // ── Exact replication of DashboardController::studentTimetable() ──
+        // ── Build term/year-scoped slot query ─────────────────────────────
         //
-        // Filter by COURSE ID, not section ID.
-        // Reason: retake/backlog courses sit in a *different semester's* timetable
-        // under a different section. Matching via course_id ensures those slots are
-        // included regardless of which timetable or section they live in.
-        // No semester filter applied for the same reason.
-        $enrolledCourseIds = CourseSection::whereIn('id', $enrolledSectionIds)
+        // Load enrolled sections (with term + year) so we can scope the timetable
+        // query to exactly the terms the student is actually registered for.
+        // This prevents showing slots from other active terms (e.g. Winter slots
+        // when the student is only enrolled in Fall).
+        //
+        // For retake students enrolled in sections from multiple terms (e.g. an old
+        // failed course's term plus the current term), slots from each term are
+        // included correctly — no data is lost.
+        $enrolledSections = CourseSection::whereIn('id', $enrolledSectionIds)
+            ->get(['id', 'course_id', 'term', 'year']);
+
+        $enrolledCourseIds = $enrolledSections
             ->pluck('course_id')
             ->filter()
             ->unique()
@@ -81,13 +87,27 @@ class TimetableService
             ];
         }
 
+        // Distinct (term, year) pairs from the student's own enrollments
+        $termYearPairs = $enrolledSections
+            ->map(fn($s) => ['term' => $s->term, 'year' => $s->year])
+            ->unique(fn($p) => $p['term'] . '|' . $p['year'])
+            ->values();
+
         $slots = TimetableSlot::whereHas('courseSection',
                 fn($q) => $q->whereIn('course_id', $enrolledCourseIds)
             )
-            ->whereHas('timetable', fn($q) => $q
-                ->whereIn('status', ['active', 'draft'])
-                ->where('department_id', $student->department_id)
-            )
+            ->whereHas('timetable', function ($q) use ($termYearPairs, $student) {
+                $q->whereIn('status', ['active', 'draft'])
+                  ->where('department_id', $student->department_id)
+                  ->where(function ($inner) use ($termYearPairs) {
+                      foreach ($termYearPairs as $pair) {
+                          $inner->orWhere(fn($sub) =>
+                              $sub->where('term', $pair['term'])
+                                  ->where('year', $pair['year'])
+                          );
+                      }
+                  });
+            })
             ->with(['courseSection.course', 'teacher', 'room', 'timetable'])
             ->get()
             ->unique('id');

@@ -108,16 +108,21 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::post('/excel-import',        [ExcelImportController::class, 'import'])->name('admin.excel-import.store');
     Route::post('/excel-import/diagnose',   [ExcelImportController::class, 'diagnose'])->name('admin.excel-import.diagnose');
     Route::post('/excel-import/debug-rows', [ExcelImportController::class, 'debugRows'])->name('admin.excel-import.debug-rows');
-    Route::get('/excel-import/counts',    [ExcelImportController::class, 'counts'])->name('admin.excel-import.counts');
-    Route::post('/excel-import/truncate', [ExcelImportController::class, 'truncate'])->name('admin.excel-import.truncate');
+    Route::get('/excel-import/counts',       [ExcelImportController::class, 'counts'])->name('admin.excel-import.counts');
+    Route::post('/excel-import/truncate',    [ExcelImportController::class, 'truncate'])->name('admin.excel-import.truncate');
+    Route::post('/excel-import/repair-counts', [ExcelImportController::class, 'repairCounts'])->name('admin.excel-import.repair-counts');
 
     // Admin: view timetables for any student / teacher / HOD department
-    Route::get('/students/{student}/timetable',  [AdminTimetableController::class, 'studentTimetable'])->name('admin.students.timetable');
-    Route::get('/teachers/{teacher}/timetable',  [AdminTimetableController::class, 'teacherTimetable'])->name('admin.teachers.timetable');
-    Route::get('/hods/{hod}/timetable',          [AdminTimetableController::class, 'hodTimetable'])->name('admin.hods.timetable');
+    Route::get('/students/{student}/timetable',       [AdminTimetableController::class, 'studentTimetable'])->name('admin.students.timetable');
+    Route::get('/students/{student}/slots',  [AdminTimetableController::class, 'studentTimetableSlots'])->name('admin.students.timetable-slots');
+    Route::get('/teachers/{teacher}/timetable', [AdminTimetableController::class, 'teacherTimetable'])->name('admin.teachers.timetable');
+    Route::get('/teachers/{teacher}/slots',     [AdminTimetableController::class, 'teacherTimetableSlots'])->name('admin.teachers.timetable-slots');
+    Route::get('/hods/{hod}/timetable',         [AdminTimetableController::class, 'hodTimetable'])->name('admin.hods.timetable');
+    Route::get('/hods/{hod}/slots',             [AdminTimetableController::class, 'hodTimetableSlots'])->name('admin.hods.timetable-slots');
 
     // Scheduling & System pages
     Route::get('/schedule',  [DashboardController::class, 'schedule'])->name('admin.schedule');
+    Route::get('/schedule/{timetable}/slots', [DashboardController::class, 'scheduleSlots'])->name('admin.schedule.slots');
     Route::get('/conflicts',      [DashboardController::class, 'conflicts'])->name('admin.conflicts');
     Route::post('/conflicts/scan', [DashboardController::class, 'scanConflicts'])->name('admin.conflicts.scan');
     Route::get('/activity',  [DashboardController::class, 'activity'])->name('admin.activity');
@@ -148,6 +153,7 @@ Route::middleware(['auth', 'role:hod'])->prefix('hod')->group(function () {
     Route::delete('/assign-course/{assignment}', [HodPagesController::class, 'destroyAssignment'])->name('hod.assign-course.destroy');
 
     Route::get('/generate-timetable', [HodPagesController::class, 'generateTimetable'])->name('hod.generate-timetable');
+    Route::get('/timetable/{timetable}/slots', [HodPagesController::class, 'timetableSlots'])->name('hod.timetable.slots');
     Route::get('/courses-by-department', [HodPagesController::class, 'coursesByDepartment'])->name('hod.courses-by-department');
     Route::get('/departments-by-semester', [HodPagesController::class, 'departmentsBySemester'])->name('hod.departments-by-semester');
     Route::get('/view-timetable', [HodPagesController::class, 'viewTimetable'])->name('hod.view-timetable');
@@ -159,7 +165,9 @@ Route::middleware(['auth', 'role:hod'])->prefix('hod')->group(function () {
     // HOD: view timetable for own-department students and teachers
     Route::get('/students',                              [HodTimetableController::class, 'students'])->name('hod.students');
     Route::get('/students/{student}/timetable',         [HodTimetableController::class, 'studentTimetable'])->name('hod.students.timetable');
+    Route::get('/students/{student}/slots',             [HodTimetableController::class, 'studentTimetableSlots'])->name('hod.students.timetable-slots');
     Route::get('/teachers/{teacher}/timetable',         [HodTimetableController::class, 'teacherTimetable'])->name('hod.teachers.timetable');
+    Route::get('/teachers/{teacher}/slots',             [HodTimetableController::class, 'teacherTimetableSlots'])->name('hod.teachers.timetable-slots');
 });
 
 // Professor Routes
@@ -170,11 +178,13 @@ Route::middleware(['auth', 'role:professor'])->prefix('professor')->group(functi
     Route::get('/timetable', [ProfessorController::class, 'timetable'])->name('professor.timetable');
 
     // Students page
-    Route::get('/students', [ProfessorController::class, 'students'])->name('professor.students');
+    Route::get('/students',                              [ProfessorController::class, 'students'])->name('professor.students');
+    Route::get('/students/{student}/slots',              [ProfessorController::class, 'studentSlots'])->name('professor.students.slots');
 
     // Availability page + CRUD
     Route::get('/availability',                          [ProfessorController::class, 'availability'])->name('professor.availability');
     Route::post('/availability',                         [TeacherAvailabilityController::class, 'store'])->name('professor.availability.store');
+    Route::put('/availability/{teacherAvailability}',    [TeacherAvailabilityController::class, 'update'])->name('professor.availability.update');
     Route::delete('/availability/{teacherAvailability}', [TeacherAvailabilityController::class, 'destroy'])->name('professor.availability.destroy');
 });
 

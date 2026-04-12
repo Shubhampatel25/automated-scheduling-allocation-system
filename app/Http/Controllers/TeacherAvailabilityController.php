@@ -17,6 +17,8 @@ class TeacherAvailabilityController extends Controller
             'start_time'         => 'required|date_format:H:i',
             'end_time'           => 'required|date_format:H:i|after:start_time',
             'max_hours_per_week' => 'nullable|integer|min:1|max:40',
+            'term'               => 'required|in:Fall,Winter,Summer',
+            'year'               => 'required|integer|min:2020|max:2100',
         ], [
             'days.required' => 'Please select at least one day.',
             'days.min'      => 'Please select at least one day.',
@@ -27,14 +29,11 @@ class TeacherAvailabilityController extends Controller
             return back()->with('error', 'Teacher record not found.');
         }
 
-        $term = now()->month <= 4 ? 'Winter' : (now()->month <= 8 ? 'Summer' : 'Fall');
-        $year = now()->year;
-
         foreach ($request->days as $day) {
             TeacherAvailability::create([
                 'teacher_id'         => $teacher->id,
-                'term'               => $term,
-                'year'               => $year,
+                'term'               => $request->term,
+                'year'               => (int) $request->year,
                 'day_of_week'        => $day,
                 'start_time'         => $request->start_time . ':00',
                 'end_time'           => $request->end_time . ':00',
@@ -45,6 +44,34 @@ class TeacherAvailabilityController extends Controller
 
         $count = count($request->days);
         return back()->with('success', "Availability added for {$count} day(s) successfully.");
+    }
+
+    public function update(Request $request, TeacherAvailability $teacherAvailability)
+    {
+        $teacher = Teacher::where('user_id', Auth::id())->first();
+        if (!$teacher || $teacherAvailability->teacher_id !== $teacher->id) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $request->validate([
+            'day_of_week'        => 'required|in:Monday,Tuesday,Wednesday,Thursday,Friday',
+            'start_time'         => 'required|date_format:H:i',
+            'end_time'           => 'required|date_format:H:i|after:start_time',
+            'max_hours_per_week' => 'nullable|integer|min:1|max:40',
+            'term'               => 'required|in:Fall,Winter,Summer',
+            'year'               => 'required|integer|min:2020|max:2100',
+        ]);
+
+        $teacherAvailability->update([
+            'term'               => $request->term,
+            'year'               => (int) $request->year,
+            'day_of_week'        => $request->day_of_week,
+            'start_time'         => $request->start_time . ':00',
+            'end_time'           => $request->end_time . ':00',
+            'max_hours_per_week' => $request->max_hours_per_week ?? 20,
+        ]);
+
+        return back()->with('success', 'Availability slot updated successfully.');
     }
 
     public function destroy(TeacherAvailability $teacherAvailability)

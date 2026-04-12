@@ -8,6 +8,10 @@
     @include('hod.partials.sidebar')
 @endsection
 
+@push('styles')
+<link rel="stylesheet" href="{{ asset('css/manage.css') }}">
+@endpush
+
 @section('content')
 
 <style>
@@ -37,12 +41,7 @@
 .status-archived { background:#f1f5f9; color:#64748b; }
 .conflict-badge  { display:inline-block; padding:3px 10px; border-radius:20px; font-size:.78rem; font-weight:600; background:#fee2e2; color:#dc2626; }
 .tt-actions { display:flex; flex-direction:column; gap:8px; align-items:flex-end; }
-.btn-activate { padding:9px 20px; background:#22c55e; color:#fff; border:none; border-radius:8px; font-size:.88rem; font-weight:600; cursor:pointer; }
-.btn-activate:hover { background:#16a34a; }
-.btn-view { padding:9px 20px; background:#eff6ff; color:#1d4ed8; border:none; border-radius:8px; font-size:.88rem; font-weight:600; cursor:pointer; text-decoration:none; display:inline-block; }
-.btn-view:hover { background:#dbeafe; }
-.btn-delete { padding:9px 20px; background:#fee2e2; color:#dc2626; border:none; border-radius:8px; font-size:.88rem; font-weight:600; cursor:pointer; }
-.btn-delete:hover { background:#fca5a5; }
+.tt-actions .btn-tbl-view, .tt-actions .btn-tbl-activate, .tt-actions .btn-tbl-del { padding:8px 18px; font-size:.88rem; }
 .active-timetable { border:2px solid #22c55e; }
 .empty-state { text-align:center; padding:60px 20px; color:#94a3b8; }
 .empty-state .empty-icon { font-size:3rem; margin-bottom:12px; }
@@ -117,12 +116,13 @@
                         </div>
                     </div>
                     <div class="tt-actions">
-                        <a href="{{ route('hod.view-timetable', ['timetable_id' => $tt->id]) }}" class="btn-view">
+                        <button class="btn-tbl-view"
+                                onclick="openTimetableModal({{ $tt->id }}, '{{ addslashes($tt->department->name ?? 'N/A') }}', '{{ $tt->term }} {{ $tt->year }}', {{ $tt->semester ?? 0 }})">
                             &#128065; View
-                        </a>
+                        </button>
                         <form method="POST" action="{{ route('hod.timetable.activate', $tt->id) }}">
                             @csrf
-                            <button type="submit" class="btn-activate"
+                            <button type="submit" class="btn-tbl-activate"
                                     onclick="return confirm('Activate this timetable? Any current active timetable for the same term/year will be archived.')">
                                 &#9989; Activate
                             </button>
@@ -130,7 +130,7 @@
                         <form method="POST" action="{{ route('hod.timetable.delete', $tt->id) }}"
                               onsubmit="return confirm('Permanently delete this draft timetable?')">
                             @csrf
-                            <button type="submit" class="btn-delete">&#128465; Delete</button>
+                            <button type="submit" class="btn-tbl-del">&#128465; Delete</button>
                         </form>
                     </div>
                 </div>
@@ -162,9 +162,10 @@
                         </div>
                     </div>
                     <div class="tt-actions">
-                        <a href="{{ route('hod.view-timetable', ['timetable_id' => $tt->id]) }}" class="btn-view">
+                        <button class="btn-tbl-view"
+                                onclick="openTimetableModal({{ $tt->id }}, '{{ addslashes($tt->department->name ?? 'N/A') }}', '{{ $tt->term }} {{ $tt->year }}', {{ $tt->semester ?? 0 }})">
                             &#128065; View
-                        </a>
+                        </button>
                     </div>
                 </div>
             @endforeach
@@ -189,9 +190,10 @@
                         </div>
                     </div>
                     <div class="tt-actions">
-                        <a href="{{ route('hod.view-timetable', ['timetable_id' => $tt->id]) }}" class="btn-view">
+                        <button class="btn-tbl-view"
+                                onclick="openTimetableModal({{ $tt->id }}, '{{ addslashes($tt->department->name ?? 'N/A') }}', '{{ $tt->term }} {{ $tt->year }}', {{ $tt->semester ?? 0 }})">
                             &#128065; View
-                        </a>
+                        </button>
                     </div>
                 </div>
             @endforeach
@@ -211,4 +213,5 @@
     </div>
 @endif
 
+@include('partials.timetable-modal', ['slotRouteBase' => url('hod/timetable')])
 @endsection

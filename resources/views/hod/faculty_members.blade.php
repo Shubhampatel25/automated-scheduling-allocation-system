@@ -8,6 +8,10 @@
     @include('hod.partials.sidebar')
 @endsection
 
+@push('styles')
+<link rel="stylesheet" href="{{ asset('css/manage.css') }}">
+@endpush
+
 @section('content')
 
 <style>
@@ -223,10 +227,10 @@
                             @endif
                         </td>
                         <td>
-                            <a href="{{ route('hod.teachers.timetable', $teacher->id) }}"
-                               style="display:inline-block;padding:5px 12px;background:#6366f1;color:#fff;border-radius:6px;font-size:.78rem;font-weight:600;text-decoration:none;white-space:nowrap;">
-                                &#128197; View
-                            </a>
+                            <button class="btn-tbl-view"
+                                    onclick="openTimetableModal({{ $teacher->id }}, '{{ addslashes($teacher->name) }}', '{{ addslashes($teacher->department->name ?? '') }}', 0)">
+                                &#128065; View Timetable
+                            </button>
                         </td>
                     </tr>
                 @endforeach
@@ -282,4 +286,5 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 
+@include('partials.timetable-modal', ['slotRouteBase' => url('hod/teachers')])
 @endsection

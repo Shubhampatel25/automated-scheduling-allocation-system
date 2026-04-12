@@ -86,12 +86,13 @@
                         </span>
                     </td>
                     <td>
-                        <button class="link-edit" onclick="editRoom({{ $room->id }}, '{{ $room->room_number }}', '{{ addslashes($room->building) }}', '{{ $room->type }}', '{{ $room->capacity }}', '{{ addslashes($room->equipment ?? '') }}', '{{ $room->status }}')">Edit</button>
-                        <span class="sep"> | </span>
-                        <form method="POST" action="{{ route('admin.rooms.destroy', $room->id) }}" style="display:inline" onsubmit="return confirm('Delete this room?')">
-                            @csrf @method('DELETE')
-                            <button type="submit" class="link-del">Delete</button>
-                        </form>
+                        <div class="action-btns">
+                            <button class="btn-tbl-edit" onclick="editRoom({{ $room->id }}, '{{ $room->room_number }}', '{{ addslashes($room->building) }}', '{{ $room->type }}', '{{ $room->capacity }}', '{{ addslashes($room->equipment ?? '') }}', '{{ $room->status }}')">&#9998; Edit</button>
+                            <form method="POST" action="{{ route('admin.rooms.destroy', $room->id) }}" style="display:contents" onsubmit="return confirm('Delete this room?')">
+                                @csrf @method('DELETE')
+                                <button type="submit" class="btn-tbl-del">&#128465; Delete</button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
                 @empty

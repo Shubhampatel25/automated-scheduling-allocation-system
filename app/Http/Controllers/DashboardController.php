@@ -232,6 +232,34 @@ class DashboardController extends Controller
         return view('admin.schedule.index', compact('timetables', 'departments'));
     }
 
+    public function scheduleSlots(Timetable $timetable)
+    {
+        $slots = TimetableSlot::where('timetable_id', $timetable->id)
+            ->with(['courseSection.course', 'teacher', 'room'])
+            ->get()
+            ->map(fn($s) => [
+                'day'       => $s->day_of_week,
+                'start'     => substr($s->start_time, 0, 5),
+                'end'       => substr($s->end_time,   0, 5),
+                'component' => $s->component,
+                'course'    => $s->courseSection?->course?->name ?? 'N/A',
+                'code'      => $s->courseSection?->course?->code ?? '',
+                'teacher'   => $s->teacher?->name ?? '—',
+                'room'      => $s->room?->room_number ?? '—',
+            ]);
+
+        return response()->json([
+            'timetable' => [
+                'department' => $timetable->department?->name ?? 'N/A',
+                'term'       => $timetable->term,
+                'year'       => $timetable->year,
+                'semester'   => $timetable->semester,
+                'status'     => $timetable->status,
+            ],
+            'slots' => $slots,
+        ]);
+    }
+
     public function conflicts(\Illuminate\Http\Request $request)
     {
         $query = Conflict::with(['timetable.department', 'slot1.teacher', 'slot1.room', 'slot1.courseSection.course']);
@@ -369,7 +397,7 @@ class DashboardController extends Controller
 
         $mapReg = function ($reg) {
             $section = $reg->courseSection;
-            $course  = $section ? clone $section->course : null;
+            $course  = ($section && $section->course) ? clone $section->course : null;
             if ($course) {
                 $course->registrationId     = $reg->id;
                 $course->registrationStatus = $reg->status;
@@ -420,6 +448,31 @@ class DashboardController extends Controller
             $semester   = $studentRecord ? $studentRecord->semester : 'N/A';
             $department = $studentRecord && $studentRecord->department ? $studentRecord->department->name : 'N/A';
 
+            // ── Sequential semester guard ─────────────────────────────────────
+            // Detect and correct illegal jumps (e.g. sem 3 → sem 6).
+            // Uses student_semester_history first, then completed registrations.
+            // No schema changes — only updates students.semester when a jump is found.
+            if ($studentRecord && $studentId) {
+                $semAuth = $svc->getAuthoritativeSemester($studentId, $studentRecord);
+                if ($semAuth['corrected']) {
+                    DB::table('students')
+                        ->where('id', $studentRecord->id)
+                        ->update(['semester' => $semAuth['semester']]);
+                    $studentRecord->semester = $semAuth['semester'];
+                    $semester                = $semAuth['semester'];
+
+                    ActivityLog::create([
+                        'user_id'     => Auth::id(),
+                        'action'      => 'semester_corrected',
+                        'entity_type' => 'student',
+                        'entity_id'   => $studentRecord->id,
+                        'details'     => $semAuth['reason'],
+                        'created_at'  => now(),
+                    ]);
+                }
+            }
+            // ─────────────────────────────────────────────────────────────────
+
             // ── Auto-advance semester ──────────────────────────────────────────
             // PRIMARY  : semester_1_result = 'Pass' while still on semester 1
             // SECONDARY: all current-semester courses completed AND ≥ 50 % passed
@@ -455,6 +508,7 @@ class DashboardController extends Controller
                         // fee auto-correction are atomic — no partial state on failure.
                         DB::transaction(function () use ($studentRecord, $currentSem, $currentYear, &$semester, &$feeRecord, &$feePaid) {
                             DB::table('students')->where('id', $studentRecord->id)
+                                ->where('semester', $currentSem)
                                 ->update(['semester' => $currentSem + 1]);
                             $studentRecord->semester = $currentSem + 1;
                             $semester                = $currentSem + 1;
@@ -750,20 +804,30 @@ class DashboardController extends Controller
             $timetableIsDraft = false;
 
             if ($enrolledSectionIds->isNotEmpty() && $studentRecord) {
-                $enrolledCourseIds = CourseSection::whereIn('id', $enrolledSectionIds)
-                    ->pluck('course_id')->toArray();
+                $enrolledSections  = CourseSection::whereIn('id', $enrolledSectionIds)
+                    ->get(['id', 'course_id', 'term', 'year']);
+                $enrolledCourseIds = $enrolledSections->pluck('course_id')->toArray();
+                $termYearPairs     = $enrolledSections
+                    ->map(fn($s) => ['term' => $s->term, 'year' => $s->year])
+                    ->unique(fn($p) => $p['term'] . '|' . $p['year'])
+                    ->values();
 
                 if (!empty($enrolledCourseIds)) {
-                    // No semester filter here — retake courses belong to a different
-                    // semester's timetable (e.g. student in Sem 4 retaking a Sem 3 course).
-                    // The course_id filter already restricts to enrolled courses only.
                     $weeklySchedule = TimetableSlot::whereHas('courseSection',
                             fn($q) => $q->whereIn('course_id', $enrolledCourseIds)
                         )
-                        ->whereHas('timetable', fn($q) => $q
-                            ->whereIn('status', ['active', 'draft'])
-                            ->where('department_id', $studentRecord->department_id)
-                        )
+                        ->whereHas('timetable', function ($q) use ($termYearPairs, $studentRecord) {
+                            $q->whereIn('status', ['active', 'draft'])
+                              ->where('department_id', $studentRecord->department_id)
+                              ->where(function ($inner) use ($termYearPairs) {
+                                  foreach ($termYearPairs as $pair) {
+                                      $inner->orWhere(fn($sub) =>
+                                          $sub->where('term', $pair['term'])
+                                              ->where('year', $pair['year'])
+                                      );
+                                  }
+                              });
+                        })
                         ->with(['courseSection.course', 'teacher', 'room', 'timetable'])
                         ->get()
                         ->unique('id');
@@ -794,17 +858,30 @@ class DashboardController extends Controller
 
             $allSlots = collect();
             if ($enrolledSectionIds->isNotEmpty() && $studentRecord) {
-                $enrolledCourseIds = CourseSection::whereIn('id', $enrolledSectionIds)
-                    ->pluck('course_id')->toArray();
+                $enrolledSections  = CourseSection::whereIn('id', $enrolledSectionIds)
+                    ->get(['id', 'course_id', 'term', 'year']);
+                $enrolledCourseIds = $enrolledSections->pluck('course_id')->toArray();
+                $termYearPairs     = $enrolledSections
+                    ->map(fn($s) => ['term' => $s->term, 'year' => $s->year])
+                    ->unique(fn($p) => $p['term'] . '|' . $p['year'])
+                    ->values();
 
                 if (!empty($enrolledCourseIds)) {
                     $allSlots = TimetableSlot::whereHas('courseSection',
                             fn($q) => $q->whereIn('course_id', $enrolledCourseIds)
                         )
-                        ->whereHas('timetable', fn($q) => $q
-                            ->whereIn('status', ['active', 'draft'])
-                            ->where('department_id', $studentRecord->department_id)
-                        )
+                        ->whereHas('timetable', function ($q) use ($termYearPairs, $studentRecord) {
+                            $q->whereIn('status', ['active', 'draft'])
+                              ->where('department_id', $studentRecord->department_id)
+                              ->where(function ($inner) use ($termYearPairs) {
+                                  foreach ($termYearPairs as $pair) {
+                                      $inner->orWhere(fn($sub) =>
+                                          $sub->where('term', $pair['term'])
+                                              ->where('year', $pair['year'])
+                                      );
+                                  }
+                              });
+                        })
                         ->with(['courseSection.course', 'teacher', 'room'])
                         ->get()
                         ->unique('id');

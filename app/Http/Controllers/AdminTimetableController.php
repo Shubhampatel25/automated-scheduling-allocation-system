@@ -37,6 +37,36 @@ class AdminTimetableController extends Controller
         ]));
     }
 
+    // ── JSON endpoint for popup modal ─────────────────────────────────────
+
+    public function studentTimetableSlots(Student $student)
+    {
+        $student->loadMissing('department');
+        $data  = $this->timetableService->getStudentTimetable($student->id);
+        $slots = $data['slots'];
+        $tt    = $data['timetable'];
+
+        return response()->json([
+            'timetable' => [
+                'department' => $tt?->department?->name ?? $student->department?->name ?? 'N/A',
+                'term'       => $tt?->term  ?? '—',
+                'year'       => $tt?->year  ?? '—',
+                'semester'   => $student->semester,
+                'status'     => $tt?->status ?? 'N/A',
+            ],
+            'slots' => $slots->map(fn($s) => [
+                'day'       => $s->day_of_week,
+                'start'     => substr($s->start_time, 0, 5),
+                'end'       => substr($s->end_time,   0, 5),
+                'component' => $s->component,
+                'course'    => $s->courseSection?->course?->name ?? 'N/A',
+                'code'      => $s->courseSection?->course?->code  ?? '',
+                'teacher'   => $s->teacher?->name     ?? '—',
+                'room'      => $s->room?->room_number ?? '—',
+            ])->values(),
+        ]);
+    }
+
     // ── View any teacher's timetable ──────────────────────────────────────
 
     public function teacherTimetable(Teacher $teacher)
@@ -50,6 +80,33 @@ class AdminTimetableController extends Controller
         );
 
         return view('admin.timetable.teacher', $data);
+    }
+
+    public function teacherTimetableSlots(Teacher $teacher)
+    {
+        $data  = $this->timetableService->getProfessorTimetable($teacher->id);
+        $slots = $data['slots'];
+
+        return response()->json([
+            'timetable' => [
+                'department' => $teacher->department?->name ?? 'N/A',
+                'term'       => 'All Terms',
+                'year'       => '',
+                'semester'   => 0,
+                'status'     => 'active',
+            ],
+            'slots' => $slots->map(fn($s) => [
+                'day'       => $s->day_of_week,
+                'start'     => substr($s->start_time, 0, 5),
+                'end'       => substr($s->end_time,   0, 5),
+                'component' => $s->component,
+                'course'    => $s->courseSection?->course?->name ?? 'N/A',
+                'code'      => $s->courseSection?->course?->code  ?? '',
+                'teacher'   => $teacher->name,
+                'room'      => $s->room?->room_number ?? '—',
+                'term'      => ($s->timetable?->term ?? '') . ' ' . ($s->timetable?->year ?? ''),
+            ])->values(),
+        ]);
     }
 
     // ── View a HOD's personal teaching timetable ─────────────────────────
@@ -79,5 +136,38 @@ class AdminTimetableController extends Controller
         return view('admin.timetable.hod', array_merge($data, [
             'hod' => $hod,
         ]));
+    }
+
+    public function hodTimetableSlots(Hod $hod)
+    {
+        $hod->load(['teacher.department', 'department']);
+        $teacher = $hod->teacher;
+
+        if (! $teacher) {
+            return response()->json(['timetable' => [], 'slots' => []]);
+        }
+
+        $data  = $this->timetableService->getProfessorTimetable($teacher->id);
+        $slots = $data['slots'];
+
+        return response()->json([
+            'timetable' => [
+                'department' => $hod->department?->name ?? $teacher->department?->name ?? 'N/A',
+                'term'       => '—',
+                'year'       => '—',
+                'semester'   => 0,
+                'status'     => 'active',
+            ],
+            'slots' => $slots->map(fn($s) => [
+                'day'       => $s->day_of_week,
+                'start'     => substr($s->start_time, 0, 5),
+                'end'       => substr($s->end_time,   0, 5),
+                'component' => $s->component,
+                'course'    => $s->courseSection?->course?->name ?? 'N/A',
+                'code'      => $s->courseSection?->course?->code  ?? '',
+                'teacher'   => $teacher->name,
+                'room'      => $s->room?->room_number ?? '—',
+            ])->values(),
+        ]);
     }
 }

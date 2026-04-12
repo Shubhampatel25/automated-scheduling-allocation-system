@@ -84,8 +84,8 @@ class PasswordOtpController extends Controller
 
     public function showVerifyOtp(Request $request)
     {
-        // Email comes from session flash or query param (resend redirect)
-        $email = session('otp_email') ?? $request->query('email', '');
+        // Email comes from session flash, old input (after failed verify), or query param
+        $email = session('otp_email') ?? old('email') ?? $request->query('email', '');
         return view('auth.verify-otp', compact('email'));
     }
 

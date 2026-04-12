@@ -310,21 +310,80 @@ class HodPagesController extends Controller
 
     // ─── 7. Department Timetable ─────────────────────────────────────────────
 
+    public function timetableSlots(\App\Models\Timetable $timetable)
+    {
+        $slots = \App\Models\TimetableSlot::where('timetable_id', $timetable->id)
+            ->with(['courseSection.course', 'teacher', 'room'])
+            ->get()
+            ->map(fn($s) => [
+                'day'       => $s->day_of_week,
+                'start'     => substr($s->start_time, 0, 5),
+                'end'       => substr($s->end_time,   0, 5),
+                'component' => $s->component,
+                'course'    => $s->courseSection?->course?->name ?? 'N/A',
+                'code'      => $s->courseSection?->course?->code  ?? '',
+                'teacher'   => $s->teacher?->name     ?? '—',
+                'room'      => $s->room?->room_number ?? '—',
+            ]);
+
+        return response()->json([
+            'timetable' => [
+                'department' => $timetable->department?->name ?? 'N/A',
+                'term'       => $timetable->term,
+                'year'       => $timetable->year,
+                'semester'   => $timetable->semester,
+                'status'     => $timetable->status,
+            ],
+            'slots' => $slots,
+        ]);
+    }
+
     public function departmentTimetable(Request $request)
     {
-        $departmentId = $this->getDepartmentId();
+        $myDepartmentId = $this->getDepartmentId();
 
-        // Show all active timetables for the department grouped by semester
-        $activeTimetables = $departmentId
-            ? Timetable::where('department_id', $departmentId)
+        // All departments that have at least one active timetable (for the dept selector).
+        $departments = Department::whereHas('timetables', fn($q) => $q->where('status', 'active'))
+            ->orderBy('name')
+            ->get();
+
+        // If a specific timetable_id is passed (e.g. from the "View" button on the
+        // generate page), resolve it first and derive the department from it.
+        $selectedTimetable = null;
+        if ($request->timetable_id) {
+            $selectedTimetable = Timetable::withCount('timetableSlots as slot_count')
+                ->find($request->timetable_id);
+        }
+
+        // Determine which department to list timetables for:
+        //   1. Department of the explicitly-selected timetable
+        //   2. dept_id query param (user picked a department from the selector)
+        //   3. HOD's own department (default)
+        $selectedDeptId = $selectedTimetable?->department_id
+            ?? ($request->dept_id ? (int) $request->dept_id : null)
+            ?? $myDepartmentId;
+
+        // Active timetables for the selected department (shown in the timetable selector).
+        $activeTimetables = $selectedDeptId
+            ? Timetable::where('department_id', $selectedDeptId)
                 ->where('status', 'active')
                 ->withCount('timetableSlots as slot_count')
                 ->orderBy('semester')
                 ->get()
             : collect();
 
-        $selectedId = $request->timetable_id ?? $activeTimetables->first()?->id;
-        $selectedTimetable = $selectedId ? Timetable::find($selectedId) : null;
+        // If the explicitly-selected timetable is a draft/archived it won't be in
+        // $activeTimetables — inject it so the blade can still render its slots.
+        if ($selectedTimetable && !$activeTimetables->contains('id', $selectedTimetable->id)) {
+            $activeTimetables = collect([$selectedTimetable])->merge($activeTimetables);
+        }
+
+        // If no timetable was explicitly requested, default to the first active one.
+        if (!$selectedTimetable) {
+            $selectedTimetable = $activeTimetables->first();
+        }
+
+        $selectedId = $selectedTimetable?->id;
 
         $timetableSlots = $selectedId
             ? TimetableSlot::where('timetable_id', $selectedId)
@@ -332,10 +391,11 @@ class HodPagesController extends Controller
                 ->get()
             : collect();
 
-        $department = $departmentId ? Department::find($departmentId) : null;
+        $department = $selectedDeptId ? Department::find($selectedDeptId) : null;
 
         return view('hod.department_timetable', compact(
-            'activeTimetables', 'selectedTimetable', 'timetableSlots', 'department'
+            'departments', 'activeTimetables', 'selectedTimetable',
+            'timetableSlots', 'department', 'selectedDeptId'
         ));
     }
 

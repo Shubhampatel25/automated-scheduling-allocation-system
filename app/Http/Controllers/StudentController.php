@@ -37,11 +37,16 @@ class StudentController extends Controller
             'roll_no'       => 'required|string|max:50|unique:students,roll_no',
             'department_id' => 'required|exists:departments,id',
             'semester'      => 'required|integer|between:1,8',
+            'email'         => 'nullable|email|max:255|unique:users,email|unique:students,email',
         ]);
 
-        $firstName = strtolower(str_replace(' ', '', explode(' ', trim($request->name))[0]));
-        $rollClean = strtolower(str_replace(['/', ' '], '', $request->roll_no));
-        $email     = $firstName . $rollClean . '@student.edu';
+        if ($request->filled('email')) {
+            $email = strtolower(trim($request->email));
+        } else {
+            $firstName = strtolower(str_replace(' ', '', explode(' ', trim($request->name))[0]));
+            $rollClean = strtolower(str_replace(['/', ' '], '', $request->roll_no));
+            $email     = $firstName . $rollClean . '@student.edu';
+        }
 
         // Atomic: both User and Student must be created together.
         // If Student creation fails, the User record is rolled back automatically.
@@ -94,14 +99,24 @@ class StudentController extends Controller
             'roll_no'       => 'required|string|max:50|unique:students,roll_no,' . $student->id,
             'department_id' => 'required|exists:departments,id',
             'semester'      => 'required|integer|between:1,8',
+            'email'         => 'nullable|email|max:255|unique:users,email,' . $student->user_id . '|unique:students,email,' . $student->id,
         ]);
 
-        $student->update([
+        $updateData = [
             'name'          => $request->name,
             'roll_no'       => $request->roll_no,
             'department_id' => $request->department_id,
             'semester'      => $request->semester,
-        ]);
+        ];
+
+        if ($request->filled('email')) {
+            $updateData['email'] = strtolower(trim($request->email));
+            if ($student->user_id) {
+                User::where('id', $student->user_id)->update(['email' => $updateData['email']]);
+            }
+        }
+
+        $student->update($updateData);
 
         return redirect()->route('admin.students.index')
             ->with('success', 'Student updated successfully.');

@@ -169,6 +169,56 @@ class TimetableConstraintService
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
+     * True if scheduling the proposed slot would push the teacher's total
+     * teaching time on $day over the 6-hour daily maximum.
+     *
+     * Duration is computed from start_time / end_time in seconds — not by slot
+     * count — so non-standard slot lengths are handled correctly.
+     *
+     * Scope matches teacherHasOverlap(): all active/draft timetables in the same
+     * term/year plus the current draft being built. $excludeSlotId lets the manual
+     * reschedule path exclude the slot it is replacing so the old booking is not
+     * double-counted.
+     *
+     * @param float $maxHours  Daily cap in hours (default 6.0, exposed for testing).
+     */
+    public function teacherExceedsDailyHours(
+        int    $teacherId,
+        string $day,
+        string $startTime,
+        string $endTime,
+        string $term,
+        int    $year,
+        ?int   $currentTimetableId = null,
+        ?int   $excludeSlotId      = null,
+        float  $maxHours           = 6.0
+    ): bool {
+        $query = TimetableSlot::where('teacher_id', $teacherId)
+            ->where('day_of_week', $day)
+            ->whereHas('timetable', function ($q) use ($term, $year, $currentTimetableId) {
+                $q->where('term', $term)
+                  ->where('year', $year)
+                  ->where(function ($inner) use ($currentTimetableId) {
+                      $inner->whereIn('status', ['active', 'draft']);
+                      if ($currentTimetableId) {
+                          $inner->orWhere('id', $currentTimetableId);
+                      }
+                  });
+            });
+
+        if ($excludeSlotId) {
+            $query->where('id', '!=', $excludeSlotId);
+        }
+
+        $existingHours = $query->get(['start_time', 'end_time'])
+            ->sum(fn($s) => (strtotime($s->end_time) - strtotime($s->start_time)) / 3600);
+
+        $proposedHours = (strtotime($endTime) - strtotime($startTime)) / 3600;
+
+        return ($existingHours + $proposedHours) > $maxHours;
+    }
+
+    /**
      * True if the teacher is available to teach in the given day/time window.
      *
      * Rules:
@@ -191,7 +241,18 @@ class TimetableConstraintService
             ->exists();
 
         if (!$hasAnyRecord) {
-            return true; // no constraints recorded → always available
+            // If the teacher has availability records for OTHER terms/years but not
+            // for this term/year, treat them as unavailable for this term.
+            // Only fall back to "always available" when the teacher has set NO
+            // availability records at all (new teacher who hasn't configured anything).
+            $hasRecordsForAnyTerm = TeacherAvailability::where('teacher_id', $teacherId)
+                ->exists();
+
+            if ($hasRecordsForAnyTerm) {
+                return false; // has availability set for other terms, but not this one → unavailable
+            }
+
+            return true; // no availability records at all → always available
         }
 
         $windows = TeacherAvailability::where('teacher_id', $teacherId)
@@ -292,6 +353,72 @@ class TimetableConstraintService
         // To schedule 2 sessions per week for a course, set weekly_sessions = 2
         // on that course record in the admin panel or via the courses table.
         return 1;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Rule 1: Professor break constraint
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * True if placing the teacher in the proposed slot would create a
+     * back-to-back situation on the same day.
+     *
+     * "Back-to-back" means an existing slot ends within $gapMinutes of the
+     * proposed start, or an existing slot starts within $gapMinutes of the
+     * proposed end — i.e. the two sessions are separated by only a short break.
+     *
+     * With the standard campus grid (10-minute gaps between slots 0-1, 1-2,
+     * 3-4 and a 60-minute lunch between slots 2 and 3) a threshold of 15
+     * minutes correctly flags the short-break adjacencies while leaving the
+     * lunch gap unrestricted.
+     *
+     * Scoped identically to teacherHasOverlap() so cross-semester/draft
+     * bookings are visible.
+     */
+    public function teacherWouldCreateBackToBack(
+        int    $teacherId,
+        string $day,
+        string $startTime,
+        string $endTime,
+        string $term,
+        int    $year,
+        ?int   $currentTimetableId = null,
+        int    $gapMinutes         = 15
+    ): bool {
+        $gapSeconds    = $gapMinutes * 60;
+        $proposedStart = strtotime($startTime);
+        $proposedEnd   = strtotime($endTime);
+
+        // Lower bound for an adjacent-before slot's end_time
+        $adjBeforeMin = date('H:i:s', $proposedStart - $gapSeconds);
+        // Upper bound for an adjacent-after slot's start_time
+        $adjAfterMax  = date('H:i:s', $proposedEnd   + $gapSeconds);
+
+        return TimetableSlot::where('teacher_id', $teacherId)
+            ->where('day_of_week', $day)
+            ->where(function ($q) use ($startTime, $endTime, $adjBeforeMin, $adjAfterMax) {
+                // Case A: existing slot ends just before the proposed slot starts
+                $q->where(function ($q2) use ($adjBeforeMin, $startTime) {
+                    $q2->where('end_time', '>', $adjBeforeMin)
+                       ->where('end_time', '<=', $startTime);
+                })
+                // Case B: existing slot starts just after the proposed slot ends
+                ->orWhere(function ($q2) use ($endTime, $adjAfterMax) {
+                    $q2->where('start_time', '>=', $endTime)
+                       ->where('start_time', '<', $adjAfterMax);
+                });
+            })
+            ->whereHas('timetable', function ($q) use ($term, $year, $currentTimetableId) {
+                $q->where('term', $term)
+                  ->where('year', $year)
+                  ->where(function ($inner) use ($currentTimetableId) {
+                      $inner->whereIn('status', ['active', 'draft']);
+                      if ($currentTimetableId) {
+                          $inner->orWhere('id', $currentTimetableId);
+                      }
+                  });
+            })
+            ->exists();
     }
 
     // ──────────────────────────────────────────────────────────────────────────

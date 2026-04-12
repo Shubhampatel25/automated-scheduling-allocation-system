@@ -313,7 +313,7 @@ body {
 }
 
 .data-table tr:hover {
-    background: #fafbff;
+    background: #f3f4ff;
 }
 
 /* Status indicators */
@@ -404,8 +404,9 @@ body {
 .timetable .slot {
     background: rgba(102, 126, 234, 0.08);
     border-radius: 6px;
-    padding: 8px;
+    padding: 8px 10px;
     margin: 2px 0;
+    border-left: 3px solid #667eea;
 }
 
 .timetable .slot .course-name {
@@ -654,4 +655,115 @@ body {
     .quick-actions {
         grid-template-columns: 1fr;
     }
+}
+
+/* ── Fee / payment status badges (self-contained, used without .status base) ── */
+.status-paid {
+    display: inline-block;
+    background: #d1fae5;
+    color: #065f46;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.status-overdue {
+    display: inline-block;
+    background: #fee2e2;
+    color: #991b1b;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.status-partial {
+    display: inline-block;
+    background: #dbeafe;
+    color: #1e40af;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.status-none {
+    display: inline-block;
+    background: #f3f4f6;
+    color: #6b7280;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+/* ── Table utility classes ── */
+.email-cell {
+    color: #4f46e5;
+    font-size: 0.83rem;
+}
+
+.text-muted-cell {
+    color: #9ca3af;
+    font-size: 0.83rem;
+}
+
+/* ── Alert auto-dismiss fade ── */
+@keyframes alertFadeOut {
+    0%   { opacity: 1; max-height: 80px; margin-bottom: 20px; }
+    80%  { opacity: 1; }
+    100% { opacity: 0; max-height: 0; margin-bottom: 0; padding: 0; overflow: hidden; }
+}
+
+.alert-dismissing {
+    animation: alertFadeOut 0.5s ease forwards;
+}
+
+/* ── Badge links: remove underline when a badge is used as <a> ── */
+a.badge {
+    text-decoration: none;
+}
+
+a.badge:hover {
+    opacity: 0.85;
+}
+
+/* ── View Timetable button (used in dashboard timetable table) ── */
+.btn-view-tt {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    background: #6366f1;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    text-decoration: none;
+    line-height: 1.4;
+}
+
+.btn-view-tt:hover {
+    background: #4f46e5;
+}
+
+/* ── Card top margin utility ── */
+.card-mt {
+    margin-top: 24px;
+}
+
+/* ── Inline term badge (dashboard course table) ── */
+.term-pill {
+    font-size: 0.78rem;
+    background: #ede9fe;
+    color: #5b21b6;
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-weight: 600;
+    display: inline-block;
 }

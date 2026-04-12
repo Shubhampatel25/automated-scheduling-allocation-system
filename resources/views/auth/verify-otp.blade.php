@@ -47,7 +47,7 @@
 
             <form method="POST" action="{{ route('password.otp.verify') }}" id="otpForm">
                 @csrf
-                <input type="hidden" name="email" value="{{ $email }}">
+                <input type="hidden" name="email" value="{{ old('email', $email) }}">
 
                 <div class="form-group">
                     <label style="display:block;text-align:center;margin-bottom:4px;">Enter 6-Digit OTP</label>
@@ -75,7 +75,7 @@
                 <span id="resendLinkWrap" style="display:none;">
                     <form method="POST" action="{{ route('password.otp.resend') }}" style="display:inline;">
                         @csrf
-                        <input type="hidden" name="email" value="{{ $email }}">
+                        <input type="hidden" name="email" value="{{ old('email', $email) }}">
                         <button type="submit">Resend OTP</button>
                     </form>
                 </span>

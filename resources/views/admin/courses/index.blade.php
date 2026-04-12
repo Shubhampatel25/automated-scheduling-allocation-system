@@ -36,40 +36,44 @@
         </div>
     </div>
     <div class="card-body">
-        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px;padding:12px 16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;">
-            <div><label style="font-size:0.78rem;font-weight:600;color:#6b7280;margin-right:4px;">Department</label>
-                <select id="fDept" onchange="applyFilters()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.85rem;color:#374151;background:#fff;cursor:pointer;">
+        <div class="filter-bar">
+            <div>
+                <label for="fDeptFilter">Department</label>
+                <select id="fDeptFilter" onchange="applyFilters()">
                     <option value="">All Departments</option>
                     @foreach($departments->sortBy('name') as $dept)
                         <option value="{{ strtolower($dept->name) }}">{{ $dept->name }}</option>
                     @endforeach
                 </select>
             </div>
-            <div><label style="font-size:0.78rem;font-weight:600;color:#6b7280;margin-right:4px;">Semester</label>
-                <select id="fSem" onchange="applyFilters()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.85rem;color:#374151;background:#fff;cursor:pointer;">
+            <div>
+                <label for="fSemFilter">Semester</label>
+                <select id="fSemFilter" onchange="applyFilters()">
                     <option value="">All Semesters</option>
                     @for($i = 1; $i <= 8; $i++)
                         <option value="{{ $i }}">Semester {{ $i }}</option>
                     @endfor
                 </select>
             </div>
-            <div><label style="font-size:0.78rem;font-weight:600;color:#6b7280;margin-right:4px;">Type</label>
-                <select id="fType" onchange="applyFilters()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.85rem;color:#374151;background:#fff;cursor:pointer;">
+            <div>
+                <label for="fTypeFilter">Type</label>
+                <select id="fTypeFilter" onchange="applyFilters()">
                     <option value="">All Types</option>
                     <option value="theory">Theory</option>
                     <option value="lab">Lab</option>
                     <option value="elective">Elective</option>
                 </select>
             </div>
-            <div><label style="font-size:0.78rem;font-weight:600;color:#6b7280;margin-right:4px;">Status</label>
-                <select id="fStatus" onchange="applyFilters()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.85rem;color:#374151;background:#fff;cursor:pointer;">
+            <div>
+                <label for="fStatusFilter">Status</label>
+                <select id="fStatusFilter" onchange="applyFilters()">
                     <option value="">All Statuses</option>
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
                 </select>
             </div>
-            <button onclick="clearFilters()" style="padding:6px 14px;background:none;border:1px solid #d1d5db;border-radius:6px;font-size:0.82rem;color:#6b7280;cursor:pointer;">&#10005; Clear</button>
-            <span id="filterCount" style="display:none;font-size:0.72rem;background:#4f46e5;color:#fff;border-radius:10px;padding:2px 8px;font-weight:600;"></span>
+            <button class="btn-clear-filters" onclick="clearFilters()">&#10005; Clear</button>
+            <span class="filter-badge" id="filterCount"></span>
         </div>
         <table class="data-table" id="courseTable">
             <thead>
@@ -105,12 +109,13 @@
                         </span>
                     </td>
                     <td>
-                        <button class="link-edit" onclick="editCourse({{ $course->id }}, '{{ $course->code }}', '{{ addslashes($course->name) }}', '{{ $course->department_id }}', '{{ $course->semester }}', '{{ $course->fee ?? 0 }}', '{{ $course->credits }}', '{{ $course->type }}', '{{ $course->status }}')">Edit</button>
-                        <span class="sep"> | </span>
-                        <form method="POST" action="{{ route('admin.courses.destroy', $course->id) }}" style="display:inline" onsubmit="return confirm('Delete this course?')">
-                            @csrf @method('DELETE')
-                            <button type="submit" class="link-del">Delete</button>
-                        </form>
+                        <div class="action-btns">
+                            <button class="btn-tbl-edit" onclick="editCourse({{ $course->id }}, '{{ $course->code }}', '{{ addslashes($course->name) }}', '{{ $course->department_id }}', '{{ $course->semester }}', '{{ $course->fee ?? 0 }}', '{{ $course->credits }}', '{{ $course->type }}', '{{ $course->status }}')">&#9998; Edit</button>
+                            <form method="POST" action="{{ route('admin.courses.destroy', $course->id) }}" style="display:contents" onsubmit="return confirm('Delete this course?')">
+                                @csrf @method('DELETE')
+                                <button type="submit" class="btn-tbl-del">&#128465; Delete</button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
                 @empty
@@ -239,10 +244,10 @@ function editCourse(id, code, name, deptId, semester, fee, credits, type, status
 function filterTable() { applyFilters(); }
 function applyFilters() {
     const query  = document.getElementById('searchInput').value.toLowerCase().trim();
-    const dept   = document.getElementById('fDept').value.toLowerCase();
-    const sem    = document.getElementById('fSem').value;
-    const type   = document.getElementById('fType').value;
-    const status = document.getElementById('fStatus').value;
+    const dept   = document.getElementById('fDeptFilter').value.toLowerCase();
+    const sem    = document.getElementById('fSemFilter').value;
+    const type   = document.getElementById('fTypeFilter').value;
+    const status = document.getElementById('fStatusFilter').value;
     let count = 0;
     document.querySelectorAll('#courseTable tbody tr').forEach(row => {
         const ok = (!query  || row.textContent.toLowerCase().includes(query))
@@ -260,7 +265,7 @@ function applyFilters() {
     badge.style.display = active > 0 ? 'inline' : 'none';
 }
 function clearFilters() {
-    ['searchInput','fDept','fSem','fType','fStatus'].forEach(id => document.getElementById(id).value = '');
+    ['searchInput','fDeptFilter','fSemFilter','fTypeFilter','fStatusFilter'].forEach(id => document.getElementById(id).value = '');
     applyFilters();
 }
 document.addEventListener('DOMContentLoaded', applyFilters);

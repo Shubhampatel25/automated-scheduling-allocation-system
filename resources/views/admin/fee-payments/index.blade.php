@@ -11,11 +11,8 @@
 @push('styles')
 <link rel="stylesheet" href="{{ asset('css/manage.css') }}">
 <style>
-    .status-paid    { background: #d1fae5; color: #065f46; padding: 2px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; }
+    /* status-pending overrides global to match fee context (amber-brown vs orange) */
     .status-pending { background: #fef3c7; color: #92400e; padding: 2px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; }
-    .status-overdue { background: #fee2e2; color: #991b1b; padding: 2px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; }
-    .status-partial { background: #dbeafe; color: #1e40af; padding: 2px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; }
-    .status-none    { background: #f3f4f6; color: #6b7280; padding: 2px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; }
     .tab-bar { display: flex; gap: 0; margin-bottom: 0; border-bottom: 2px solid #e5e7eb; }
     .tab-btn { padding: 10px 24px; background: none; border: none; border-bottom: 3px solid transparent; cursor: pointer; font-size: 0.9rem; font-weight: 500; color: #6b7280; margin-bottom: -2px; }
     .tab-btn.active { color: #4f46e5; border-bottom-color: #4f46e5; }
@@ -32,7 +29,7 @@
             <a href="{{ route('admin.dashboard') }}">Dashboard</a> / Manage Fee Payments
         </div>
     </div>
-    <div style="display:flex;gap:10px;">
+    <div class="action-btns">
         <form method="POST" action="{{ route('admin.fee-payments.generate') }}" onsubmit="return confirm('Generate pending fee records for all students who don\'t have one yet for the current semester?')">
             @csrf
             <button type="submit" class="btn-add" style="background:#0891b2;">&#9881; Generate Pending Records</button>
@@ -42,8 +39,13 @@
 </div>
 
 @if(session('success'))
-    <div style="background:#d1fae5;color:#065f46;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:0.9rem;">
-        {{ session('success') }}
+    <div style="background:#d1fae5;color:#065f46;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:0.9rem;display:flex;align-items:center;gap:8px;border:1px solid #a7f3d0;">
+        <span>&#10003;</span> {{ session('success') }}
+    </div>
+@endif
+@if(session('error'))
+    <div style="background:#fee2e2;color:#991b1b;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:0.9rem;display:flex;align-items:center;gap:8px;border:1px solid #fca5a5;">
+        <span>&#9888;</span> {{ session('error') }}
     </div>
 @endif
 
@@ -55,7 +57,7 @@
 
 <!-- ===== TAB 1: ALL STUDENTS ===== -->
 <div id="tab-students" class="tab-content active">
-    <div class="dashboard-card" style="margin-top:0;border-top-left-radius:0;">
+    <div class="dashboard-card" style="margin-top:0;border-radius:0 12px 12px 12px;">
         <div class="card-header">
             <h3>Students &mdash; Fee Status ({{ $currentYear }})</h3>
             <form method="GET" action="{{ route('admin.fee-payments.index') }}" id="searchFormStudents" style="display:contents">
@@ -100,19 +102,20 @@
                             </td>
                             <td>
                                 @if($semPayment)
-                                    <button class="link-edit"
-                                        onclick="editPayment({{ $semPayment->id }}, {{ $student->id }}, {{ $student->semester }}, {{ $semPayment->year }}, '{{ $semPayment->amount }}', '{{ $semPayment->status }}')">
-                                        Edit
-                                    </button>
-                                    <span class="sep"> | </span>
-                                    <form method="POST" action="{{ route('admin.fee-payments.destroy', $semPayment->id) }}" style="display:inline" onsubmit="return confirm('Delete payment record for {{ addslashes($student->name) }}?')">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" class="link-del">Delete</button>
-                                    </form>
+                                    <div class="action-btns">
+                                        <button class="btn-tbl-edit"
+                                            onclick="editPayment({{ $semPayment->id }}, {{ $student->id }}, {{ $student->semester }}, {{ $semPayment->year }}, '{{ $semPayment->amount }}', '{{ $semPayment->status }}')">
+                                            &#9998; Edit
+                                        </button>
+                                        <form method="POST" action="{{ route('admin.fee-payments.destroy', $semPayment->id) }}" style="display:contents" onsubmit="return confirm('Delete payment record for {{ addslashes($student->name) }}?')">
+                                            @csrf @method('DELETE')
+                                            <button type="submit" class="btn-tbl-del">&#128465; Delete</button>
+                                        </form>
+                                    </div>
                                 @else
-                                    <button class="link-edit"
+                                    <button class="btn-tbl-edit"
                                         onclick="openAddForStudent({{ $student->id }}, {{ $student->semester }})">
-                                        Add Payment
+                                        + Add Payment
                                     </button>
                                 @endif
                             </td>
@@ -129,7 +132,7 @@
 
 <!-- ===== TAB 2: PAYMENT RECORDS ===== -->
 <div id="tab-records" class="tab-content">
-    <div class="dashboard-card" style="margin-top:0;border-top-left-radius:0;">
+    <div class="dashboard-card" style="margin-top:0;border-radius:0 12px 12px 12px;">
         <div class="card-header">
             <h3>All Payment Records</h3>
             <div class="table-toolbar">
@@ -153,6 +156,7 @@
             </div>
         </div>
         <div class="card-body">
+            <div class="table-scroll">
             <table class="data-table">
                 <thead>
                     <tr>
@@ -190,12 +194,13 @@
                         <td><span class="status-{{ $payment->status }}">{{ ucfirst($payment->status) }}</span></td>
                         <td>{{ $payment->paid_at ? \Carbon\Carbon::parse($payment->paid_at)->format('Y-m-d') : '-' }}</td>
                         <td>
-                            <button class="link-edit" onclick="editPayment({{ $payment->id }}, {{ $payment->student_id }}, {{ $payment->semester }}, {{ $payment->year }}, '{{ $payment->amount }}', '{{ $payment->status }}')">Edit</button>
-                            <span class="sep"> | </span>
-                            <form method="POST" action="{{ route('admin.fee-payments.destroy', $payment->id) }}" style="display:inline" onsubmit="return confirm('Delete this payment record?')">
-                                @csrf @method('DELETE')
-                                <button type="submit" class="link-del">Delete</button>
-                            </form>
+                            <div class="action-btns">
+                                <button class="btn-tbl-edit" onclick="editPayment({{ $payment->id }}, {{ $payment->student_id }}, {{ $payment->semester }}, {{ $payment->year }}, '{{ $payment->amount }}', '{{ $payment->status }}')">&#9998; Edit</button>
+                                <form method="POST" action="{{ route('admin.fee-payments.destroy', $payment->id) }}" style="display:contents" onsubmit="return confirm('Delete this payment record?')">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" class="btn-tbl-del">&#128465; Delete</button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                     @empty
@@ -203,6 +208,7 @@
                     @endforelse
                 </tbody>
             </table>
+            </div>{{-- /.table-scroll --}}
             <div style="margin-top:16px">{{ $feePayments->links() }}</div>
         </div>
     </div>

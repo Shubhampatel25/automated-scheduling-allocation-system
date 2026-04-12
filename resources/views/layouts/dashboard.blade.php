@@ -42,16 +42,23 @@
         <!-- Page Content -->
         <div class="content-area">
             @if(session('success'))
-                <div class="alert alert-success" style="background:#d1fae5;color:#065f46;padding:12px 18px;border-radius:8px;margin-bottom:20px;border:1px solid #a7f3d0;display:flex;align-items:center;gap:10px;font-size:0.9rem;">
-                    <span style="font-size:1rem;flex-shrink:0;">&#10003;</span>
-                    {{ session('success') }}
+                <div class="alert alert-success js-alert" style="background:#d1fae5;color:#065f46;padding:12px 18px;border-radius:8px;margin-bottom:20px;border:1px solid #a7f3d0;display:flex;align-items:center;gap:10px;font-size:0.9rem;">
+                    <span style="font-size:1.1rem;flex-shrink:0;font-weight:700;">&#10003;</span>
+                    <span>{{ session('success') }}</span>
                 </div>
             @endif
 
             @if(session('error'))
-                <div class="alert alert-danger" style="background:#fee2e2;color:#991b1b;padding:12px 18px;border-radius:8px;margin-bottom:20px;border:1px solid #fca5a5;display:flex;align-items:center;gap:10px;font-size:0.9rem;">
-                    <span style="font-size:1rem;flex-shrink:0;">&#9888;</span>
-                    {{ session('error') }}
+                <div class="alert alert-danger js-alert" style="background:#fee2e2;color:#991b1b;padding:12px 18px;border-radius:8px;margin-bottom:20px;border:1px solid #fca5a5;display:flex;align-items:center;gap:10px;font-size:0.9rem;">
+                    <span style="font-size:1.1rem;flex-shrink:0;">&#9888;</span>
+                    <span>{{ session('error') }}</span>
+                </div>
+            @endif
+
+            @if(session('warning'))
+                <div class="alert alert-warning js-alert" style="background:#fef3c7;color:#92400e;padding:12px 18px;border-radius:8px;margin-bottom:20px;border:1px solid #fde68a;display:flex;align-items:center;gap:10px;font-size:0.9rem;">
+                    <span style="font-size:1.1rem;flex-shrink:0;">&#9888;</span>
+                    <span>{{ session('warning') }}</span>
                 </div>
             @endif
 
@@ -60,5 +67,16 @@
     </div>
 
     @stack('scripts')
+    <script>
+    // Auto-dismiss flash alerts after 5 s
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.js-alert').forEach(function (el) {
+            setTimeout(function () {
+                el.classList.add('alert-dismissing');
+                setTimeout(function () { el.remove(); }, 500);
+            }, 5000);
+        });
+    });
+    </script>
 </body>
 </html>

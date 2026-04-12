@@ -51,13 +51,6 @@
 
 @section('content')
 
-@if(session('success'))
-<div style="background:#d1fae5;color:#065f46;padding:12px 18px;border-radius:8px;margin-bottom:16px;font-size:0.9rem;border:1px solid #a7f3d0;">&#10003; {{ session('success') }}</div>
-@endif
-@if(session('error'))
-<div style="background:#fee2e2;color:#991b1b;padding:12px 18px;border-radius:8px;margin-bottom:16px;font-size:0.9rem;border:1px solid #fca5a5;">&#9888; {{ session('error') }}</div>
-@endif
-
 {{-- ══════════════════════════════════════════════════════
      SECTION 1 — Currently Enrolled
 ══════════════════════════════════════════════════════ --}}
@@ -130,7 +123,7 @@
      SECTION 2 — Previous Results (grouped by semester)
 ══════════════════════════════════════════════════════ --}}
 @if($completedHistory->isNotEmpty())
-<div class="dashboard-card" style="margin-top:24px;">
+<div class="dashboard-card card-mt">
     @php
         $total       = $historyStats['total']       ?? 0;
         $passed      = $historyStats['passed']      ?? 0;
