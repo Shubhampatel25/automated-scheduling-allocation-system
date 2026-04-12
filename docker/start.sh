@@ -24,10 +24,7 @@ php artisan view:clear    || true
 php artisan storage:link  || true
 
 # ── Database migrations ───────────────────────────────────────────────────────
-# Run manually from the Railway shell on first deploy:
-#   php artisan migrate --force
-# Uncomment the line below only if you want auto-migrate on every container start.
-# php artisan migrate --force
+php artisan migrate --force || true
 
 # ── Start process supervisor (nginx + php-fpm) ────────────────────────────────
 exec /usr/bin/supervisord -c /var/www/html/docker/supervisord.conf
