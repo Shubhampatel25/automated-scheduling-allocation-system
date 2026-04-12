@@ -1,8 +1,9 @@
 FROM php:8.2-fpm
 
-# System dependencies + PHP extensions needed by Laravel 9 + Maatwebsite Excel
+# ── System packages ───────────────────────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
         nginx \
+        supervisor \
         libpng-dev \
         libjpeg62-turbo-dev \
         libfreetype6-dev \
@@ -19,15 +20,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Composer
+# ── Composer ──────────────────────────────────────────────────────────────────
 COPY --from=composer:2.6 /usr/bin/composer /usr/bin/composer
 
-# Nginx: write the Laravel site config inline
+# ── Nginx site config ─────────────────────────────────────────────────────────
 RUN { \
     echo 'server {'; \
     echo '    listen 8080;'; \
     echo '    root /var/www/html/public;'; \
     echo '    index index.php index.html;'; \
+    echo '    client_max_body_size 20M;'; \
     echo ''; \
     echo '    location / {'; \
     echo '        try_files $uri $uri/ /index.php?$query_string;'; \
@@ -37,6 +39,7 @@ RUN { \
     echo '        fastcgi_pass 127.0.0.1:9000;'; \
     echo '        fastcgi_index index.php;'; \
     echo '        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;'; \
+    echo '        fastcgi_read_timeout 300;'; \
     echo '        include fastcgi_params;'; \
     echo '    }'; \
     echo ''; \
@@ -48,29 +51,55 @@ RUN { \
     && ln -sf /etc/nginx/sites-available/laravel /etc/nginx/sites-enabled/laravel \
     && rm -f /etc/nginx/sites-enabled/default
 
+# ── Supervisor config ─────────────────────────────────────────────────────────
+RUN { \
+    echo '[supervisord]'; \
+    echo 'nodaemon=true'; \
+    echo 'logfile=/var/log/supervisor/supervisord.log'; \
+    echo 'pidfile=/var/run/supervisord.pid'; \
+    echo ''; \
+    echo '[program:php-fpm]'; \
+    echo 'command=php-fpm -F'; \
+    echo 'autostart=true'; \
+    echo 'autorestart=true'; \
+    echo 'priority=5'; \
+    echo 'stdout_logfile=/dev/stdout'; \
+    echo 'stdout_logfile_maxbytes=0'; \
+    echo 'stderr_logfile=/dev/stderr'; \
+    echo 'stderr_logfile_maxbytes=0'; \
+    echo ''; \
+    echo '[program:nginx]'; \
+    echo 'command=nginx -g "daemon off;"'; \
+    echo 'autostart=true'; \
+    echo 'autorestart=true'; \
+    echo 'priority=10'; \
+    echo 'stdout_logfile=/dev/stdout'; \
+    echo 'stdout_logfile_maxbytes=0'; \
+    echo 'stderr_logfile=/dev/stderr'; \
+    echo 'stderr_logfile_maxbytes=0'; \
+} > /etc/supervisor/conf.d/laravel.conf \
+    && mkdir -p /var/log/supervisor
+
+# ── Application ───────────────────────────────────────────────────────────────
 WORKDIR /var/www/html
 
-# Install dependencies first (better layer caching)
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-scripts --no-autoloader --no-interaction --prefer-dist
 
-# Copy full application
 COPY . .
 
-# Finish composer (autoloader + scripts now that full app is present)
 RUN composer dump-autoload --optimize --no-dev
 
-# Storage permissions
 RUN mkdir -p storage/framework/{sessions,views,cache} storage/logs bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
-# Write the startup script inline — no external file needed
+# ── Startup script ────────────────────────────────────────────────────────────
 RUN { \
     echo '#!/bin/sh'; \
     echo 'set -e'; \
     echo ''; \
-    echo '# ── Build .env from Railway-injected environment variables ──────────────────'; \
+    echo '# ── Write .env from Railway environment variables ────────────────────────────'; \
     echo 'cat > /var/www/html/.env << ENVEOF'; \
     echo 'APP_NAME="${APP_NAME:-Laravel}"'; \
     echo 'APP_ENV="${APP_ENV:-production}"'; \
@@ -101,7 +130,7 @@ RUN { \
     echo 'STRIPE_SECRET="${STRIPE_SECRET:-}"'; \
     echo 'ENVEOF'; \
     echo ''; \
-    echo '# ── Wait for MySQL (up to 60 s) using PHP PDO — no extra packages needed ────'; \
+    echo '# ── Wait for MySQL (up to 60 s) via PHP PDO ──────────────────────────────────'; \
     echo 'MAX_TRIES=30'; \
     echo 'TRIES=0'; \
     echo 'echo "Waiting for MySQL at ${DB_HOST:-127.0.0.1}:${DB_PORT:-3306}..."'; \
@@ -114,7 +143,7 @@ RUN { \
     echo '" 2>/dev/null; do'; \
     echo '  TRIES=$((TRIES + 1))'; \
     echo '  if [ "$TRIES" -ge "$MAX_TRIES" ]; then'; \
-    echo '    echo "ERROR: MySQL unreachable after 60 s — starting anyway."'; \
+    echo '    echo "ERROR: MySQL unreachable after 60 s — continuing anyway."'; \
     echo '    break'; \
     echo '  fi'; \
     echo '  echo "MySQL not ready, retry $TRIES/$MAX_TRIES in 2 s..."'; \
@@ -126,16 +155,12 @@ RUN { \
     echo 'php artisan config:cache'; \
     echo 'php artisan route:cache'; \
     echo 'php artisan view:cache'; \
-    echo ''; \
-    echo '# Migrate — failures are logged but do NOT prevent startup'; \
     echo 'php artisan migrate --force --no-interaction \'; \
     echo '  || echo "WARNING: migrate failed — starting with the existing schema."'; \
-    echo ''; \
     echo 'php artisan storage:link --no-interaction 2>/dev/null || true'; \
     echo ''; \
-    echo '# ── Start php-fpm and nginx ──────────────────────────────────────────────────'; \
-    echo 'php-fpm -D'; \
-    echo 'exec nginx -g "daemon off;"'; \
+    echo '# ── Hand off to supervisord (manages nginx + php-fpm) ───────────────────────'; \
+    echo 'exec supervisord -c /etc/supervisor/supervisord.conf'; \
 } > /usr/local/bin/start.sh \
     && chmod +x /usr/local/bin/start.sh
 
