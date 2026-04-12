@@ -26,6 +26,9 @@ RUN sed -i 's/Listen 80/Listen 8080/' /etc/apache2/ports.conf \
     && sed -i 's/<VirtualHost \*:80>/<VirtualHost *:8080>/' \
         /etc/apache2/sites-available/000-default.conf
 
+# Apache: fix MPM conflict (php8.2-apache enables prefork; event must be off)
+RUN a2dismod mpm_event && a2enmod mpm_prefork
+
 # Apache: point document root at Laravel public/ and allow .htaccess
 RUN sed -i 's|DocumentRoot /var/www/html|DocumentRoot /var/www/html/public|' \
         /etc/apache2/sites-available/000-default.conf \
