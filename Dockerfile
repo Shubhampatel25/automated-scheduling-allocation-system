@@ -1,7 +1,8 @@
-FROM php:8.2-apache
+FROM php:8.2-fpm
 
 # System dependencies + PHP extensions needed by Laravel 9 + Maatwebsite Excel
 RUN apt-get update && apt-get install -y --no-install-recommends \
+        nginx \
         libpng-dev \
         libjpeg62-turbo-dev \
         libfreetype6-dev \
@@ -18,23 +19,34 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Apache: disable all MPMs then re-enable only prefork (compatible with mod_php)
-RUN a2dismod mpm_event mpm_worker mpm_prefork 2>/dev/null || true && a2enmod mpm_prefork
-
 # Composer
 COPY --from=composer:2.6 /usr/bin/composer /usr/bin/composer
 
-# Apache: listen on 8080 (Railway exposes this port)
-RUN sed -i 's/Listen 80/Listen 8080/' /etc/apache2/ports.conf \
-    && sed -i 's/<VirtualHost \*:80>/<VirtualHost *:8080>/' \
-        /etc/apache2/sites-available/000-default.conf
-
-# Apache: point document root at Laravel public/ and allow .htaccess
-RUN sed -i 's|DocumentRoot /var/www/html|DocumentRoot /var/www/html/public|' \
-        /etc/apache2/sites-available/000-default.conf \
-    && printf '<Directory /var/www/html/public>\n    AllowOverride All\n    Require all granted\n</Directory>\n' \
-        >> /etc/apache2/sites-available/000-default.conf \
-    && a2enmod rewrite
+# Nginx: write the Laravel site config inline
+RUN { \
+    echo 'server {'; \
+    echo '    listen 8080;'; \
+    echo '    root /var/www/html/public;'; \
+    echo '    index index.php index.html;'; \
+    echo ''; \
+    echo '    location / {'; \
+    echo '        try_files $uri $uri/ /index.php?$query_string;'; \
+    echo '    }'; \
+    echo ''; \
+    echo '    location ~ \.php$ {'; \
+    echo '        fastcgi_pass 127.0.0.1:9000;'; \
+    echo '        fastcgi_index index.php;'; \
+    echo '        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;'; \
+    echo '        include fastcgi_params;'; \
+    echo '    }'; \
+    echo ''; \
+    echo '    location ~ /\.ht {'; \
+    echo '        deny all;'; \
+    echo '    }'; \
+    echo '}'; \
+} > /etc/nginx/sites-available/laravel \
+    && ln -sf /etc/nginx/sites-available/laravel /etc/nginx/sites-enabled/laravel \
+    && rm -f /etc/nginx/sites-enabled/default
 
 WORKDIR /var/www/html
 
@@ -102,8 +114,8 @@ RUN { \
     echo '" 2>/dev/null; do'; \
     echo '  TRIES=$((TRIES + 1))'; \
     echo '  if [ "$TRIES" -ge "$MAX_TRIES" ]; then'; \
-    echo '    echo "ERROR: MySQL unreachable after 60 s — starting Apache anyway."'; \
-    echo '    exec apache2-foreground'; \
+    echo '    echo "ERROR: MySQL unreachable after 60 s — starting anyway."'; \
+    echo '    break'; \
     echo '  fi'; \
     echo '  echo "MySQL not ready, retry $TRIES/$MAX_TRIES in 2 s..."'; \
     echo '  sleep 2'; \
@@ -115,14 +127,15 @@ RUN { \
     echo 'php artisan route:cache'; \
     echo 'php artisan view:cache'; \
     echo ''; \
-    echo '# Migrate — failures are logged but do NOT prevent Apache from starting'; \
+    echo '# Migrate — failures are logged but do NOT prevent startup'; \
     echo 'php artisan migrate --force --no-interaction \'; \
-    echo '  || echo "WARNING: migrate failed — Apache will start with the existing schema."'; \
+    echo '  || echo "WARNING: migrate failed — starting with the existing schema."'; \
     echo ''; \
     echo 'php artisan storage:link --no-interaction 2>/dev/null || true'; \
     echo ''; \
-    echo '# ── Hand off to Apache ───────────────────────────────────────────────────────'; \
-    echo 'exec apache2-foreground'; \
+    echo '# ── Start php-fpm and nginx ──────────────────────────────────────────────────'; \
+    echo 'php-fpm -D'; \
+    echo 'exec nginx -g "daemon off;"'; \
 } > /usr/local/bin/start.sh \
     && chmod +x /usr/local/bin/start.sh
 
