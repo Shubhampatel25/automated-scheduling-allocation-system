@@ -55,8 +55,8 @@ class PasswordResetOtp extends Model
         if ($this->last_sent_at === null) {
             return 0;
         }
-        $elapsed = now()->diffInSeconds($this->last_sent_at, false);
-        // diffInSeconds returns positive when last_sent_at is in the past
-        return max(0, 60 - (int) $elapsed);
+        // Use absolute diff: last_sent_at is always in the past
+        $elapsed = (int) $this->last_sent_at->diffInSeconds(now());
+        return max(0, 60 - $elapsed);
     }
 }

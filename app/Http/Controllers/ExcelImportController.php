@@ -19,6 +19,7 @@ use App\Imports\CourseSectionsImport;
 use App\Imports\CourseAssignmentsImport;
 use App\Imports\StudentCourseRegistrationsImport;
 use App\Imports\FeePaymentsImport;
+use App\Models\CourseSection;
 
 class ExcelImportController extends Controller
 {
@@ -85,6 +86,27 @@ class ExcelImportController extends Controller
         \Illuminate\Support\Facades\DB::statement('SET FOREIGN_KEY_CHECKS=1');
 
         return response()->json(['success' => 'All tables cleared. You can now import fresh data.']);
+    }
+
+    /**
+     * Repair enrolled_students counters across all course_sections.
+     *
+     * Safe to call at any time — only sections whose counter is out of sync with
+     * the actual student_course_registrations (status='enrolled') are updated.
+     * Returns the number of sections that were corrected.
+     *
+     * This is called automatically after every student_course_registrations import
+     * and is also exposed as a manual endpoint for ad-hoc repairs.
+     */
+    public function repairCounts()
+    {
+        $corrected = CourseSection::syncAllEnrolledCounts();
+
+        $msg = $corrected > 0
+            ? "Repaired {$corrected} section(s) with mismatched enrolled_students counters."
+            : 'All enrolled_students counters are already in sync — nothing to repair.';
+
+        return response()->json(['success' => $msg, 'sections_corrected' => $corrected]);
     }
 
     /**
@@ -276,6 +298,13 @@ class ExcelImportController extends Controller
                 ->with('error', 'Import failed: ' . $e->getMessage());
         }
 
+        // ── Reconcile enrolled_students after every multi-sheet import ────────
+        // Registration rows increment the counter row-by-row during import, but
+        // if sections were imported with a non-zero value from Excel (now fixed to 0
+        // in CourseSectionsImport) or any drift occurred, this single SQL pass
+        // corrects every section atomically.  Only out-of-sync rows are touched.
+        $repairCount = CourseSection::syncAllEnrolledCounts();
+
         // Collect per-sheet results
         $sheetsMap = [
             'users'                => ['label' => 'Users',                'importer' => $import->users],
@@ -309,7 +338,7 @@ class ExcelImportController extends Controller
             if ($skip > 0) $line .= ", {$skip} skipped";
             $summary[] = $line;
 
-            foreach (array_merge($importer->failures, $importer->errors) as $issue) {
+            foreach (array_merge($importer->failures, $importer->errors, $importer->skipReasons ?? []) as $issue) {
                 $allIssues[] = "[{$label}] {$issue}";
             }
         }
@@ -321,6 +350,10 @@ class ExcelImportController extends Controller
 
         if ($totalImported === 0 && count($allIssues) === 0 && $totalSkipped === 0) {
             $summaryMsg = "No data rows found in any sheet. Check that your Excel file has data below the header row.";
+        }
+
+        if ($repairCount > 0) {
+            $summaryMsg .= " | Enrollment counters: {$repairCount} section(s) auto-corrected.";
         }
 
         return redirect()->back()
@@ -371,7 +404,19 @@ class ExcelImportController extends Controller
                 ->with('error', 'Import failed: ' . $e->getMessage());
         }
 
-        $allIssues = array_merge($importer->failures, $importer->errors);
+        // ── Reconcile enrolled_students after registration or section imports ─
+        // student_course_registrations: increments happen row-by-row during
+        //   import; this final pass catches any drift from prior state or
+        //   sections that existed before this run.
+        // course_sections: sections are always inserted with enrolled_students=0;
+        //   if there are already matching registrations in the DB, this corrects
+        //   those sections immediately rather than waiting for a later import.
+        $repairCount = 0;
+        if (in_array($type, ['student_course_registrations', 'course_sections'], true)) {
+            $repairCount = CourseSection::syncAllEnrolledCounts();
+        }
+
+        $allIssues = array_merge($importer->failures, $importer->errors, $importer->skipReasons ?? []);
         $imported  = $importer->imported;
         $skipped   = $importer->skipped;
         $label     = $this->typeLabel($type);
@@ -393,6 +438,7 @@ class ExcelImportController extends Controller
 
         $msg = "{$imported} {$label} imported successfully.";
         if ($skipped > 0) $msg .= " {$skipped} row(s) skipped.";
+        if ($repairCount > 0) $msg .= " {$repairCount} enrollment counter(s) auto-corrected.";
 
         return redirect()->back()
             ->with('import_mode', 'single')

@@ -6,6 +6,7 @@ use App\Models\CourseSection;
 use App\Models\FeePayment;
 use App\Models\Student;
 use App\Models\StudentCourseRegistration;
+use App\Models\StudentSemesterHistory;
 use App\Models\TimetableSlot;
 use Illuminate\Support\Collection;
 
@@ -422,6 +423,111 @@ class RegistrationEligibilityService
         }
 
         return null;
+    }
+
+    // ─── Semester Progression Validation ─────────────────────────────────────
+
+    /**
+     * Determine the authoritative current semester for a student.
+     *
+     * Priority order:
+     *  1. student_semester_history — in_progress record OR next after the highest
+     *     *sequential* (no gaps) completed semester.
+     *  2. Completed course registrations — highest sequential semester in which
+     *     the student passed at least one course, then + 1.
+     *  3. student.semester as-is — brand-new students with neither history nor
+     *     any completed registrations.
+     *
+     * Returns:
+     *   semester  : int         — authoritative current semester (≥ 1)
+     *   corrected : bool        — true if student.semester was higher than authoritative
+     *   reason    : string|null — human-readable explanation when corrected
+     */
+    public function getAuthoritativeSemester(int $studentId, Student $student): array
+    {
+        $dbSemester = max(1, (int) $student->semester);
+
+        // ── 1. Check student_semester_history ─────────────────────────────────
+        $history = StudentSemesterHistory::where('student_id', $studentId)
+            ->orderBy('semester')
+            ->get();
+
+        if ($history->isNotEmpty()) {
+            // Find highest sequential completed semester (pass or fail, not in_progress)
+            $completed   = $history->whereNotIn('result', ['in_progress'])
+                ->pluck('semester')->map(fn($s) => (int)$s)->sort()->values()->toArray();
+            $inProgress  = $history->firstWhere('result', 'in_progress');
+
+            $highestSeq = 0;
+            foreach ($completed as $sem) {
+                if ($sem === $highestSeq + 1) {
+                    $highestSeq = $sem;
+                } else {
+                    break; // gap → stop, only count contiguous run from semester 1
+                }
+            }
+
+            // Resolve authoritative semester from history
+            if ($inProgress && (int)$inProgress->semester === $highestSeq + 1) {
+                $authSemester = (int)$inProgress->semester;
+            } elseif ($highestSeq > 0) {
+                $authSemester = $highestSeq + 1;
+            } else {
+                $authSemester = null; // history present but gaps from sem 1 — fall through
+            }
+
+            if ($authSemester !== null) {
+                if ($dbSemester > $authSemester) {
+                    return [
+                        'semester'  => $authSemester,
+                        'corrected' => true,
+                        'reason'    => "Semester jump detected: student.semester={$dbSemester} exceeds"
+                            . " history-authoritative={$authSemester}"
+                            . " (highest sequential completed sem={$highestSeq}); corrected",
+                    ];
+                }
+                return ['semester' => $dbSemester, 'corrected' => false, 'reason' => null];
+            }
+        }
+
+        // ── 2. Fall back to completed course registrations ────────────────────
+        $passedSemesters = StudentCourseRegistration::where('student_id', $studentId)
+            ->where('status', 'completed')
+            ->where('result', 'pass')
+            ->with('courseSection.course')
+            ->get()
+            ->map(fn($r) => $r->courseSection?->course?->semester)
+            ->filter()
+            ->map(fn($s) => (int)$s)
+            ->unique()
+            ->sort()
+            ->values()
+            ->toArray();
+
+        $highestSeq = 0;
+        foreach ($passedSemesters as $sem) {
+            if ($sem === $highestSeq + 1) {
+                $highestSeq = $sem;
+            } else {
+                break;
+            }
+        }
+
+        if ($highestSeq > 0) {
+            $authSemester = $highestSeq + 1;
+            if ($dbSemester > $authSemester) {
+                return [
+                    'semester'  => $authSemester,
+                    'corrected' => true,
+                    'reason'    => "Semester jump detected: student.semester={$dbSemester} exceeds"
+                        . " registration-derived={$authSemester}"
+                        . " (highest sequential passed sem={$highestSeq}); corrected",
+                ];
+            }
+        }
+
+        // ── 3. No history, no completions — trust student.semester ────────────
+        return ['semester' => $dbSemester, 'corrected' => false, 'reason' => null];
     }
 
     private function blocked(string $key, string $message): array

@@ -137,7 +137,7 @@
         <div class="import-card">
             <h2>All-in-One Import</h2>
             <p class="subtitle">
-                Upload <strong>one Excel file</strong> with up to 8 sheets — each named exactly as shown below.
+                Upload <strong>one Excel file</strong> with up to 12 sheets — each named exactly as shown below.
                 Sheets you leave out are simply skipped. Import runs top-to-bottom automatically.
             </p>
 
@@ -152,6 +152,8 @@
                 <span class="sheet-badge">courses</span>
                 <span class="sheet-badge">course_sections</span>
                 <span class="sheet-badge">course_assignments</span>
+                <span class="sheet-badge">student_course_registrations</span>
+                <span class="sheet-badge">fee_payments</span>
             </div>
             <p style="font-size:.8rem;color:#6b7280;margin:0 0 4px 0;">Sheet names are <strong>case-sensitive</strong> and must be <strong>lowercase / snake_case</strong> exactly as shown.</p>
             <p style="font-size:.8rem;color:#6b7280;margin:0 0 20px 0;">Any other sheets (e.g. <code>README</code>, <code>users</code>) are silently skipped.</p>
@@ -191,7 +193,9 @@
                         <option value="room_availability"    {{ old('import_type', session('import_type')) == 'room_availability'    ? 'selected' : '' }}>room_availability</option>
                         <option value="courses"              {{ old('import_type', session('import_type')) == 'courses'              ? 'selected' : '' }}>courses</option>
                         <option value="course_sections"      {{ old('import_type', session('import_type')) == 'course_sections'      ? 'selected' : '' }}>course_sections</option>
-                        <option value="course_assignments"   {{ old('import_type', session('import_type')) == 'course_assignments'   ? 'selected' : '' }}>course_assignments</option>
+                        <option value="course_assignments"         {{ old('import_type', session('import_type')) == 'course_assignments'         ? 'selected' : '' }}>course_assignments</option>
+                        <option value="student_course_registrations" {{ old('import_type', session('import_type')) == 'student_course_registrations' ? 'selected' : '' }}>student_course_registrations</option>
+                        <option value="fee_payments"              {{ old('import_type', session('import_type')) == 'fee_payments'              ? 'selected' : '' }}>fee_payments</option>
                     </select>
                 </div>
 
@@ -212,11 +216,15 @@
             <button class="format-tab-btn active" onclick="showPanel('departments',this)">Departments</button>
             <button class="format-tab-btn" onclick="showPanel('rooms',this)">Rooms</button>
             <button class="format-tab-btn" onclick="showPanel('teachers',this)">Teachers</button>
+            <button class="format-tab-btn" onclick="showPanel('hods',this)">HODs</button>
             <button class="format-tab-btn" onclick="showPanel('students',this)">Students</button>
             <button class="format-tab-btn" onclick="showPanel('courses',this)">Courses</button>
             <button class="format-tab-btn" onclick="showPanel('course_sections',this)">Course Sections</button>
             <button class="format-tab-btn" onclick="showPanel('course_assignments',this)">Course Assignments</button>
             <button class="format-tab-btn" onclick="showPanel('teacher_availability',this)">Teacher Availability</button>
+            <button class="format-tab-btn" onclick="showPanel('room_availability',this)">Room Availability</button>
+            <button class="format-tab-btn" onclick="showPanel('student_course_registrations',this)">Student Registrations</button>
+            <button class="format-tab-btn" onclick="showPanel('fee_payments',this)">Fee Payments</button>
         </div>
 
         {{-- Departments --}}
@@ -258,6 +266,21 @@
                     <tr><td>password</td><td><span class="badge-opt">Optional</span></td><td>Plain text. Default: <em>Teacher@123</em>.</td></tr>
                 </tbody>
             </table>
+        </div>
+
+        {{-- HODs --}}
+        <div id="panel-hods" class="format-panel">
+            <table class="col-table">
+                <thead><tr><th>Column Header</th><th>Required</th><th>Notes</th></tr></thead>
+                <tbody>
+                    <tr><td>department_id</td><td><span class="badge-req">Required</span></td><td>Numeric ID of the department. Must exist in the <em>departments</em> table.</td></tr>
+                    <tr><td>user_id</td><td><span class="badge-opt">Optional</span></td><td>Numeric ID of an existing user to link as HOD.</td></tr>
+                    <tr><td>teacher_id</td><td><span class="badge-opt">Optional</span></td><td>Numeric ID of an existing teacher to link as HOD.</td></tr>
+                    <tr><td>appointed_date</td><td><span class="badge-opt">Optional</span></td><td>Date of appointment. e.g. <em>2025-01-15</em>.</td></tr>
+                    <tr><td>status</td><td><span class="badge-opt">Optional</span></td><td><code>active</code> | <code>inactive</code>. Default: <em>active</em>.</td></tr>
+                </tbody>
+            </table>
+            <div class="note-box"><strong>Note:</strong> This sheet uses raw database IDs, not codes. Import <em>departments</em> and <em>teachers</em> first so the IDs exist.</div>
         </div>
 
         {{-- Students --}}
@@ -322,13 +345,72 @@
                 </tbody>
             </table>
             <div class="note-box">
-                <strong>Correct sheet order in your Excel file:</strong>
+                <strong>Correct sheet order in your Excel file (all-in-one import):</strong>
                 <ol>
-                    <li>Departments</li><li>Rooms</li><li>Teachers</li><li>Students</li>
-                    <li>Courses</li><li>Course Sections</li><li>Course Assignments</li><li>Teacher Availability</li>
+                    <li>departments</li><li>rooms</li><li>teachers</li><li>hods</li>
+                    <li>students</li><li>teacher_availability</li><li>room_availability</li>
+                    <li>courses</li><li>course_sections</li><li>course_assignments</li>
+                    <li>student_course_registrations</li><li>fee_payments</li>
                 </ol>
-                The all-in-one importer processes sheets in this order automatically.
+                The all-in-one importer processes sheets in this order automatically. You can include any subset — missing sheets are skipped.
             </div>
+        </div>
+
+        {{-- Room Availability --}}
+        <div id="panel-room_availability" class="format-panel">
+            <table class="col-table">
+                <thead><tr><th>Column Header</th><th>Required</th><th>Notes</th></tr></thead>
+                <tbody>
+                    <tr><td>room_id</td><td><span class="badge-req">Required</span></td><td>Numeric ID of an existing room. Must exist in the <em>rooms</em> table.</td></tr>
+                    <tr><td>day_of_week</td><td><span class="badge-req">Required</span></td><td><code>Monday</code> | <code>Tuesday</code> | <code>Wednesday</code> | <code>Thursday</code> | <code>Friday</code></td></tr>
+                    <tr><td>start_time</td><td><span class="badge-req">Required</span></td><td>24-hr format. e.g. <em>08:00</em>.</td></tr>
+                    <tr><td>end_time</td><td><span class="badge-req">Required</span></td><td>24-hr format. e.g. <em>17:00</em>.</td></tr>
+                    <tr><td>status</td><td><span class="badge-opt">Optional</span></td><td><code>available</code> | <code>unavailable</code>. Default: <em>available</em>.</td></tr>
+                </tbody>
+            </table>
+            <div class="note-box"><strong>Note:</strong> Import <em>rooms</em> first so the room_id values exist.</div>
+        </div>
+
+        {{-- Student Course Registrations --}}
+        <div id="panel-student_course_registrations" class="format-panel">
+            <table class="col-table">
+                <thead><tr><th>Column Header</th><th>Required</th><th>Notes</th></tr></thead>
+                <tbody>
+                    <tr><td>student_id <em>or</em> roll_no</td><td><span class="badge-req">Required</span></td><td>Provide one of these. <code>roll_no</code> is easier — e.g. <em>S2024001</em>.</td></tr>
+                    <tr><td>course_section_id</td><td><span class="badge-req">Required</span></td><td>Numeric ID of the course section. Must exist in <em>course_sections</em>.</td></tr>
+                    <tr><td>status</td><td><span class="badge-opt">Optional</span></td><td><code>enrolled</code> | <code>completed</code> | <code>dropped</code>. Default: <em>enrolled</em>.</td></tr>
+                    <tr><td>result</td><td><span class="badge-opt">Optional</span></td><td><code>pass</code> | <code>fail</code>. Required when status is <code>completed</code>.</td></tr>
+                    <tr><td>registered_at</td><td><span class="badge-opt">Optional</span></td><td>Date/datetime. e.g. <em>2025-01-15</em>. Defaults to now.</td></tr>
+                </tbody>
+            </table>
+            <div class="note-box">
+                <strong>Notes:</strong>
+                <ul style="margin:5px 0 0 0;padding-left:16px;">
+                    <li>Import <em>students</em> and <em>course_sections</em> before this sheet.</li>
+                    <li>The student's department must match the course's department.</li>
+                    <li>Duplicate registrations for the same student + section are skipped.</li>
+                    <li>Enrolled student counts on sections are automatically updated after import.</li>
+                </ul>
+            </div>
+        </div>
+
+        {{-- Fee Payments --}}
+        <div id="panel-fee_payments" class="format-panel">
+            <table class="col-table">
+                <thead><tr><th>Column Header</th><th>Required</th><th>Notes</th></tr></thead>
+                <tbody>
+                    <tr><td>student_id <em>or</em> roll_no</td><td><span class="badge-req">Required</span></td><td>Provide one of these. <code>roll_no</code> is easier — e.g. <em>S2024001</em>.</td></tr>
+                    <tr><td>type</td><td><span class="badge-opt">Optional</span></td><td><code>regular</code> | <code>supplemental</code>. Default: <em>regular</em>.</td></tr>
+                    <tr><td>course_id <em>or</em> course_code</td><td><span class="badge-opt">Optional</span></td><td>Required when type is <code>supplemental</code>. e.g. <em>CS101</em>.</td></tr>
+                    <tr><td>semester</td><td><span class="badge-opt">Optional</span></td><td>Integer 1–8.</td></tr>
+                    <tr><td>year</td><td><span class="badge-opt">Optional</span></td><td>4-digit year. e.g. <em>2025</em>.</td></tr>
+                    <tr><td>amount</td><td><span class="badge-opt">Optional</span></td><td>Total fee amount. Decimal. e.g. <em>1500.00</em>.</td></tr>
+                    <tr><td>paid_amount</td><td><span class="badge-opt">Optional</span></td><td>Amount paid so far. Decimal. Default: <em>0</em>.</td></tr>
+                    <tr><td>status</td><td><span class="badge-opt">Optional</span></td><td><code>pending</code> | <code>paid</code> | <code>partial</code> | <code>overdue</code>. Auto-corrected based on amounts if omitted.</td></tr>
+                    <tr><td>paid_at</td><td><span class="badge-opt">Optional</span></td><td>Date/datetime of payment. e.g. <em>2025-03-01</em>.</td></tr>
+                </tbody>
+            </table>
+            <div class="note-box"><strong>Note:</strong> Import <em>students</em> first. For supplemental fees, import <em>courses</em> first too.</div>
         </div>
 
         {{-- Teacher Availability --}}

@@ -36,6 +36,7 @@
 @endsection
 
 @push('styles')
+<link rel="stylesheet" href="{{ asset('css/manage.css') }}">
 <style>
 /* ---- Day-pill toggle buttons ---- */
 .day-picker {
@@ -44,9 +45,7 @@
     gap: 10px;
     margin-bottom: 4px;
 }
-.day-pill input[type="checkbox"] {
-    display: none;
-}
+.day-pill input[type="checkbox"] { display: none; }
 .day-pill span {
     display: inline-block;
     padding: 8px 18px;
@@ -60,11 +59,7 @@
     user-select: none;
     transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
-.day-pill span:hover {
-    border-color: #a5b4fc;
-    color: #4f46e5;
-    background: #eef2ff;
-}
+.day-pill span:hover { border-color: #a5b4fc; color: #4f46e5; background: #eef2ff; }
 .day-pill input[type="checkbox"]:checked + span {
     background: #6366f1;
     border-color: #6366f1;
@@ -87,15 +82,8 @@
     align-items: center;
     justify-content: space-between;
 }
-.avail-card-header h3 {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #1f2937;
-    margin: 0;
-}
-.avail-card-body {
-    padding: 24px;
-}
+.avail-card-header h3 { font-size: 1rem; font-weight: 600; color: #1f2937; margin: 0; }
+.avail-card-body { padding: 24px; }
 
 /* ---- Form field groups ---- */
 .form-row {
@@ -123,14 +111,11 @@
     transition: border-color 0.15s;
 }
 .form-group input:focus,
-.form-group select:focus {
-    border-color: #6366f1;
-    box-shadow: 0 0 0 3px rgba(99,102,241,.15);
-}
+.form-group select:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.15); }
 .form-group input[type="time"] { min-width: 140px; }
 .form-group input[type="number"] { width: 110px; }
 
-/* ---- Submit button ---- */
+/* ---- Buttons ---- */
 .btn-submit-avail {
     padding: 9px 24px;
     background: #6366f1;
@@ -189,34 +174,120 @@
     cursor: pointer;
     transition: background 0.15s;
 }
-.btn-remove:hover {
-    background: #ef4444;
-    color: #fff;
-    border-color: #ef4444;
+.btn-remove:hover { background: #ef4444; color: #fff; border-color: #ef4444; }
+
+.btn-edit {
+    padding: 5px 14px;
+    background: #eff6ff;
+    color: #2563eb;
+    border: 1px solid #bfdbfe;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+    margin-right: 6px;
 }
-.empty-avail {
-    text-align: center;
-    padding: 48px 0;
-    color: #9ca3af;
-}
+.btn-edit:hover { background: #2563eb; color: #fff; border-color: #2563eb; }
+
+.action-cell { display: flex; gap: 6px; align-items: center; }
+
+.empty-avail { text-align: center; padding: 48px 0; color: #9ca3af; }
 .empty-avail .ei { font-size: 2.5rem; margin-bottom: 10px; }
+
+/* ---- Edit Modal ---- */
+.modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+.modal-backdrop.open { display: flex; }
+.modal-box {
+    background: #fff;
+    border-radius: 14px;
+    width: 100%;
+    max-width: 520px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    padding: 28px 32px;
+    position: relative;
+}
+.modal-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 22px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f3f4f6;
+}
+.modal-close {
+    position: absolute;
+    top: 16px; right: 20px;
+    background: none;
+    border: none;
+    font-size: 1.3rem;
+    color: #9ca3af;
+    cursor: pointer;
+    line-height: 1;
+}
+.modal-close:hover { color: #374151; }
+.modal-form-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.modal-form-row .form-group { flex: 1; min-width: 130px; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
+.btn-cancel-modal {
+    padding: 9px 22px;
+    background: #f9fafb;
+    color: #374151;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+.btn-cancel-modal:hover { background: #f3f4f6; }
+.btn-save-modal {
+    padding: 9px 24px;
+    background: #6366f1;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.btn-save-modal:hover { background: #4f46e5; }
 </style>
 @endpush
 
 @section('content')
+    @php
+        $currentYear = now()->year;
+        $years = [$currentYear - 1, $currentYear, $currentYear + 1];
+        $terms = ['Fall', 'Winter', 'Summer'];
+        $days  = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+
+        // Guess sensible defaults for the add form
+        $defaultTerm = now()->month <= 4 ? 'Winter' : (now()->month <= 8 ? 'Summer' : 'Fall');
+        $defaultYear = $currentYear;
+    @endphp
+
     <!-- Page Header -->
-    <div class="manage-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-        <div>
-            <h2 style="font-size:1.3rem;font-weight:600;color:#1f2937;margin:0;">My Availability</h2>
-            <div style="font-size:0.78rem;color:#9ca3af;margin-top:4px;">
-                <a href="{{ route('professor.dashboard') }}" style="color:#6366f1;text-decoration:none;">Dashboard</a>
-                &rsaquo; My Availability
+    <div class="manage-header">
+        <div class="manage-title">
+            <h2>My Availability</h2>
+            <div class="breadcrumb-nav">
+                <a href="{{ route('professor.dashboard') }}">Dashboard</a> / My Availability
             </div>
         </div>
-        <span style="font-size:0.85rem;color:#6b7280;">
+        <span class="text-muted-cell" style="font-size:0.85rem;">
             {{ $availability->count() }} slot(s) set
         </span>
     </div>
+
+    {{-- Session flashes are handled by the shared layout -- no duplication needed --}}
 
     <!-- Add Availability Card -->
     <div class="avail-card">
@@ -234,10 +305,7 @@
                         Select Day(s) <span style="color:#ef4444;">*</span>
                     </label>
                     <div class="day-picker">
-                        @php
-                            $days = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
-                            $oldDays = old('days', []);
-                        @endphp
+                        @php $oldDays = old('days', []); @endphp
                         @foreach($days as $day)
                             <label class="day-pill">
                                 <input type="checkbox"
@@ -253,7 +321,7 @@
                     @enderror
                 </div>
 
-                {{-- Time + hours row --}}
+                {{-- Time + term + year + hours row --}}
                 <div class="form-row">
                     <div class="form-group">
                         <label>Start Time <span style="color:#ef4444;">*</span></label>
@@ -266,6 +334,32 @@
                         <label>End Time <span style="color:#ef4444;">*</span></label>
                         <input type="time" name="end_time" value="{{ old('end_time') }}" required>
                         @error('end_time')
+                            <p style="color:#ef4444;font-size:0.78rem;margin-top:4px;">{{ $message }}</p>
+                        @enderror
+                    </div>
+                    <div class="form-group">
+                        <label>Term <span style="color:#ef4444;">*</span></label>
+                        <select name="term" required style="min-width:110px;">
+                            @foreach($terms as $t)
+                                <option value="{{ $t }}" {{ old('term', $defaultTerm) === $t ? 'selected' : '' }}>
+                                    {{ $t }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('term')
+                            <p style="color:#ef4444;font-size:0.78rem;margin-top:4px;">{{ $message }}</p>
+                        @enderror
+                    </div>
+                    <div class="form-group">
+                        <label>Year <span style="color:#ef4444;">*</span></label>
+                        <select name="year" required style="min-width:100px;">
+                            @foreach($years as $y)
+                                <option value="{{ $y }}" {{ old('year', $defaultYear) == $y ? 'selected' : '' }}>
+                                    {{ $y }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('year')
                             <p style="color:#ef4444;font-size:0.78rem;margin-top:4px;">{{ $message }}</p>
                         @enderror
                     </div>
@@ -323,13 +417,31 @@
                                 <td>{{ ucfirst($slot->term ?? '—') }}</td>
                                 <td>{{ $slot->year ?? '—' }}</td>
                                 <td>
-                                    <form method="POST"
-                                          action="{{ route('professor.availability.destroy', $slot->id) }}"
-                                          onsubmit="return confirm('Remove this availability slot?')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn-remove">Remove</button>
-                                    </form>
+                                    <div class="action-cell">
+                                        {{-- Edit button --}}
+                                        <button type="button"
+                                                class="btn-edit"
+                                                onclick="openEditModal(
+                                                    {{ $slot->id }},
+                                                    '{{ $slot->day_of_week }}',
+                                                    '{{ substr($slot->start_time, 0, 5) }}',
+                                                    '{{ substr($slot->end_time, 0, 5) }}',
+                                                    '{{ $slot->term }}',
+                                                    {{ $slot->year }},
+                                                    {{ $slot->max_hours_per_week ?? 20 }}
+                                                )">
+                                            Edit
+                                        </button>
+
+                                        {{-- Remove button --}}
+                                        <form method="POST"
+                                              action="{{ route('professor.availability.destroy', $slot->id) }}"
+                                              onsubmit="return confirm('Remove this availability slot?')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn-remove">Remove</button>
+                                        </form>
+                                    </div>
                                 </td>
                             </tr>
                         @endforeach
@@ -344,4 +456,92 @@
             @endif
         </div>
     </div>
+
+    <!-- ── Edit Modal ── -->
+    <div class="modal-backdrop" id="editModal">
+        <div class="modal-box">
+            <button class="modal-close" onclick="closeEditModal()" title="Close">&times;</button>
+            <div class="modal-title">&#9998; Edit Availability Slot</div>
+
+            <form method="POST" id="editForm" action="">
+                @csrf
+                @method('PUT')
+
+                <div class="modal-form-row">
+                    <div class="form-group" style="flex:1;min-width:140px;">
+                        <label>Day <span style="color:#ef4444;">*</span></label>
+                        <select name="day_of_week" id="edit_day" required style="width:100%;">
+                            @foreach($days as $d)
+                                <option value="{{ $d }}">{{ $d }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex:1;min-width:120px;">
+                        <label>Term <span style="color:#ef4444;">*</span></label>
+                        <select name="term" id="edit_term" required style="width:100%;">
+                            @foreach($terms as $t)
+                                <option value="{{ $t }}">{{ $t }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex:1;min-width:100px;">
+                        <label>Year <span style="color:#ef4444;">*</span></label>
+                        <select name="year" id="edit_year" required style="width:100%;">
+                            @foreach($years as $y)
+                                <option value="{{ $y }}">{{ $y }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+
+                <div class="modal-form-row">
+                    <div class="form-group" style="flex:1;">
+                        <label>Start Time <span style="color:#ef4444;">*</span></label>
+                        <input type="time" name="start_time" id="edit_start" required style="width:100%;">
+                    </div>
+                    <div class="form-group" style="flex:1;">
+                        <label>End Time <span style="color:#ef4444;">*</span></label>
+                        <input type="time" name="end_time" id="edit_end" required style="width:100%;">
+                    </div>
+                    <div class="form-group" style="flex:1;">
+                        <label>Max Hrs / Week</label>
+                        <input type="number" name="max_hours_per_week" id="edit_max_hours"
+                               min="1" max="40" style="width:100%;">
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel-modal" onclick="closeEditModal()">Cancel</button>
+                    <button type="submit" class="btn-save-modal">&#10003; Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
 @endsection
+
+@push('scripts')
+<script>
+function openEditModal(id, day, startTime, endTime, term, year, maxHours) {
+    document.getElementById('editForm').action =
+        '{{ url("professor/availability") }}/' + id;
+
+    document.getElementById('edit_day').value       = day;
+    document.getElementById('edit_term').value      = term;
+    document.getElementById('edit_year').value      = year;
+    document.getElementById('edit_start').value     = startTime;
+    document.getElementById('edit_end').value       = endTime;
+    document.getElementById('edit_max_hours').value = maxHours;
+
+    document.getElementById('editModal').classList.add('open');
+}
+
+function closeEditModal() {
+    document.getElementById('editModal').classList.remove('open');
+}
+
+// Close on backdrop click
+document.getElementById('editModal').addEventListener('click', function(e) {
+    if (e.target === this) closeEditModal();
+});
+</script>
+@endpush

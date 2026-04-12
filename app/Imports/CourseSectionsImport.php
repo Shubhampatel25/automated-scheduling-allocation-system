@@ -48,7 +48,13 @@ class CourseSectionsImport implements ToModel, WithHeadingRow, SkipsOnError, Ski
             'term'             => trim((string)($row['term']  ?? '')),
             'year'             => isset($row['year'])             ? (int)$row['year']             : date('Y'),
             'max_students'     => isset($row['max_students'])     ? (int)$row['max_students']     : 30,
-            'enrolled_students'=> isset($row['enrolled_students']) ? (int)$row['enrolled_students'] : 0,
+            // Always start at 0 — never trust the Excel value.
+            // StudentCourseRegistrationsImport increments this per enrolled row,
+            // and ExcelImportController runs syncAllEnrolledCounts() after every
+            // registration import to guarantee the final count is authoritative.
+            // Importing a non-zero Excel value would double-count once registrations
+            // are also imported.
+            'enrolled_students'=> 0,
             'created_at'       => $row['created_at'] ?? now(),
         ]);
 

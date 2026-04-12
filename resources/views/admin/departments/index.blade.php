@@ -64,12 +64,13 @@
                     <td>{{ $dept->courses_count }}</td>
                     <td>{{ $dept->students_count }}</td>
                     <td>
-                        <button class="link-edit" onclick="editDept({{ $dept->id }}, '{{ $dept->code }}', '{{ addslashes($dept->name) }}', '{{ addslashes($dept->description ?? '') }}', '{{ $dept->registration_fee ?? '' }}')">Edit</button>
-                        <span class="sep"> | </span>
-                        <form method="POST" action="{{ route('admin.departments.destroy', $dept->id) }}" style="display:inline" onsubmit="return confirm('Delete this department? This may affect teachers, courses and students linked to it.')">
-                            @csrf @method('DELETE')
-                            <button type="submit" class="link-del">Delete</button>
-                        </form>
+                        <div class="action-btns">
+                            <button class="btn-tbl-edit" onclick="editDept({{ $dept->id }}, '{{ $dept->code }}', '{{ addslashes($dept->name) }}', '{{ addslashes($dept->description ?? '') }}', '{{ $dept->registration_fee ?? '' }}')">&#9998; Edit</button>
+                            <form method="POST" action="{{ route('admin.departments.destroy', $dept->id) }}" style="display:contents" onsubmit="return confirm('Delete this department? This may affect teachers, courses and students linked to it.')">
+                                @csrf @method('DELETE')
+                                <button type="submit" class="btn-tbl-del">&#128465; Delete</button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
                 @empty

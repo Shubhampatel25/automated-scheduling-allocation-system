@@ -73,27 +73,59 @@ table.timetable td.time-label { background:#f8fafc; font-weight:600; color:#4755
     <a href="{{ route('hod.dashboard') }}" class="back-link">&#8592; Back to Dashboard</a>
 </div>
 
-@if($activeTimetables->isEmpty())
+@if($departments->isEmpty())
+    {{-- No department has published an active timetable yet --}}
     <div class="no-timetable-box">
         <div class="icon">&#128197;</div>
-        <p>No active timetable found for <strong>{{ $department->name ?? 'your department' }}</strong>.</p>
+        <p>No active timetables have been published yet across any department.</p>
         <a href="{{ route('hod.generate-timetable') }}" class="btn-go">Generate Timetable</a>
     </div>
 @else
 
-    <!-- Semester Selector -->
+    {{-- ── Department selector ─────────────────────────────────────── --}}
     <div class="selector-card">
-        <label for="tt-select">&#128197; Select Semester Timetable:</label>
-        <select id="tt-select" onchange="location.href='{{ route('hod.department-timetable') }}?timetable_id='+this.value">
+        <label for="dept-select">&#127970; Department:</label>
+        <select id="dept-select"
+                onchange="location.href='{{ route('hod.department-timetable') }}?dept_id='+this.value">
+            @foreach($departments as $dept)
+                <option value="{{ $dept->id }}"
+                        {{ $dept->id == $selectedDeptId ? 'selected' : '' }}>
+                    {{ $dept->name }}
+                </option>
+            @endforeach
+        </select>
+    </div>
+
+    @if($activeTimetables->isEmpty())
+        {{-- Selected dept exists but has no active timetable --}}
+        <div class="no-timetable-box">
+            <div class="icon">&#128197;</div>
+            <p>No active timetable found for <strong>{{ $department->name ?? 'this department' }}</strong>.</p>
+            <a href="{{ route('hod.generate-timetable') }}" class="btn-go">Generate Timetable</a>
+        </div>
+    @else
+
+    {{-- ── Semester / timetable selector ──────────────────────────── --}}
+    <div class="selector-card">
+        <label for="tt-select">&#128197; Semester:</label>
+        <select id="tt-select"
+                onchange="location.href='{{ route('hod.department-timetable') }}?dept_id={{ $selectedDeptId }}&timetable_id='+this.value">
             @foreach($activeTimetables as $tt)
-                <option value="{{ $tt->id }}" {{ $selectedTimetable?->id == $tt->id ? 'selected' : '' }}>
-                    Semester {{ $tt->semester }} — {{ $tt->term }} {{ $tt->year }}
+                <option value="{{ $tt->id }}"
+                        {{ $selectedTimetable?->id == $tt->id ? 'selected' : '' }}>
+                    Sem {{ $tt->semester }} — {{ $tt->term }} {{ $tt->year }}
                     ({{ $tt->slot_count }} slots)
                 </option>
             @endforeach
         </select>
         @if($selectedTimetable)
-            <span class="badge-active">&#9989; Active</span>
+            @if($selectedTimetable->status === 'active')
+                <span class="badge-active">&#9989; Active</span>
+            @else
+                <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:.76rem;font-weight:600;background:#fef3c7;color:#92400e;">
+                    &#9998; {{ ucfirst($selectedTimetable->status) }}
+                </span>
+            @endif
             <span class="badge-semester">Semester {{ $selectedTimetable->semester }}</span>
         @endif
     </div>
@@ -194,8 +226,10 @@ table.timetable td.time-label { background:#f8fafc; font-weight:600; color:#4755
                 <p>No slots scheduled for this timetable yet.</p>
             </div>
         </div>
-    @endif
+    @endif {{-- @if($selectedTimetable && $timetableSlots->isNotEmpty()) --}}
 
-@endif
+    @endif {{-- @if($activeTimetables->isEmpty()) --}}
+
+@endif {{-- @if($departments->isEmpty()) --}}
 
 @endsection

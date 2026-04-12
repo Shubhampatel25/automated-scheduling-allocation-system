@@ -88,4 +88,76 @@ class HodTimetableController extends Controller
 
         return view('hod.timetable.teacher', $data);
     }
+
+    // ── JSON slots for popup modal (teacher) ─────────────────────────────
+
+    public function teacherTimetableSlots(Teacher $teacher)
+    {
+        $departmentId = $this->getHodDepartmentId();
+
+        if ($teacher->department_id !== $departmentId) {
+            abort(403);
+        }
+
+        $data  = $this->timetableService->getProfessorTimetable($teacher->id);
+        $slots = $data['slots'];
+        $teacher->loadMissing('department');
+
+        return response()->json([
+            'timetable' => [
+                'department' => $teacher->department?->name ?? 'N/A',
+                'term'       => 'All Terms',
+                'year'       => '',
+                'semester'   => 0,
+                'status'     => 'active',
+            ],
+            'slots' => $slots->map(fn($s) => [
+                'day'       => $s->day_of_week,
+                'start'     => substr($s->start_time, 0, 5),
+                'end'       => substr($s->end_time,   0, 5),
+                'component' => $s->component,
+                'course'    => $s->courseSection?->course?->name ?? 'N/A',
+                'code'      => $s->courseSection?->course?->code  ?? '',
+                'teacher'   => $teacher->name,
+                'room'      => $s->room?->room_number ?? '—',
+                'term'      => ($s->timetable?->term ?? '') . ' ' . ($s->timetable?->year ?? ''),
+            ])->values(),
+        ]);
+    }
+
+    // ── JSON slots for popup modal (student) ─────────────────────────────
+
+    public function studentTimetableSlots(Student $student)
+    {
+        $departmentId = $this->getHodDepartmentId();
+
+        if ($student->department_id !== $departmentId) {
+            abort(403);
+        }
+
+        $student->loadMissing('department');
+        $data  = $this->timetableService->getStudentTimetable($student->id);
+        $slots = $data['slots'];
+        $tt    = $data['timetable'];
+
+        return response()->json([
+            'timetable' => [
+                'department' => $tt?->department?->name ?? $student->department?->name ?? 'N/A',
+                'term'       => $tt?->term  ?? '—',
+                'year'       => $tt?->year  ?? '—',
+                'semester'   => $student->semester,
+                'status'     => $tt?->status ?? 'N/A',
+            ],
+            'slots' => $slots->map(fn($s) => [
+                'day'       => $s->day_of_week,
+                'start'     => substr($s->start_time, 0, 5),
+                'end'       => substr($s->end_time,   0, 5),
+                'component' => $s->component,
+                'course'    => $s->courseSection?->course?->name ?? 'N/A',
+                'code'      => $s->courseSection?->course?->code  ?? '',
+                'teacher'   => $s->teacher?->name ?? '—',
+                'room'      => $s->room?->room_number ?? '—',
+            ])->values(),
+        ]);
+    }
 }

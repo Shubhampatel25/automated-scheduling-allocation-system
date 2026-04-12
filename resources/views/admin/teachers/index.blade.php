@@ -36,24 +36,26 @@
         </div>
     </div>
     <div class="card-body">
-        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px;padding:12px 16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;">
-            <div><label style="font-size:0.78rem;font-weight:600;color:#6b7280;margin-right:4px;">Department</label>
-                <select id="fDept" onchange="applyFilters()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.85rem;color:#374151;background:#fff;cursor:pointer;">
+        <div class="filter-bar">
+            <div>
+                <label for="fDeptFilter">Department</label>
+                <select id="fDeptFilter" onchange="applyFilters()">
                     <option value="">All Departments</option>
                     @foreach($departments->sortBy('name') as $dept)
                         <option value="{{ strtolower($dept->name) }}">{{ $dept->name }}</option>
                     @endforeach
                 </select>
             </div>
-            <div><label style="font-size:0.78rem;font-weight:600;color:#6b7280;margin-right:4px;">Status</label>
-                <select id="fStatus" onchange="applyFilters()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.85rem;color:#374151;background:#fff;cursor:pointer;">
+            <div>
+                <label for="fStatusFilter">Status</label>
+                <select id="fStatusFilter" onchange="applyFilters()">
                     <option value="">All Statuses</option>
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
                 </select>
             </div>
-            <button onclick="clearFilters()" style="padding:6px 14px;background:none;border:1px solid #d1d5db;border-radius:6px;font-size:0.82rem;color:#6b7280;cursor:pointer;">&#10005; Clear</button>
-            <span id="filterCount" style="display:none;font-size:0.72rem;background:#4f46e5;color:#fff;border-radius:10px;padding:2px 8px;font-weight:600;"></span>
+            <button class="btn-clear-filters" onclick="clearFilters()">&#10005; Clear</button>
+            <span class="filter-badge" id="filterCount"></span>
         </div>
         <table class="data-table" id="teacherTable">
             <thead>
@@ -79,16 +81,16 @@
                         </span>
                     </td>
                     <td>
-                        <button class="link-edit" onclick="editTeacher({{ $teacher->id }}, '{{ addslashes($teacher->name) }}', '{{ $teacher->email }}', '{{ $teacher->department_id }}', '{{ $teacher->status }}')">Edit</button>
-                        <span class="sep"> | </span>
-                        <a href="{{ route('admin.teachers.timetable', $teacher->id) }}"
-                           style="color:#6366f1;font-size:0.82rem;font-weight:600;text-decoration:none;white-space:nowrap;"
-                           title="View timetable for {{ $teacher->name }}">&#128197; Timetable</a>
-                        <span class="sep"> | </span>
-                        <form method="POST" action="{{ route('admin.teachers.destroy', $teacher->id) }}" style="display:inline" onsubmit="return confirm('Delete this teacher?')">
-                            @csrf @method('DELETE')
-                            <button type="submit" class="link-del">Delete</button>
-                        </form>
+                        <div class="action-btns">
+                            <button class="btn-tbl-edit" onclick="editTeacher({{ $teacher->id }}, '{{ addslashes($teacher->name) }}', '{{ $teacher->email }}', '{{ $teacher->department_id }}', '{{ $teacher->status }}')">&#9998; Edit</button>
+                            <button class="btn-tbl-view"
+                                    onclick="openTimetableModal({{ $teacher->id }}, '{{ addslashes($teacher->name) }}', '{{ addslashes($teacher->department->name ?? '') }}', 0)"
+                                    title="View timetable for {{ $teacher->name }}">&#128065; Timetable</button>
+                            <form method="POST" action="{{ route('admin.teachers.destroy', $teacher->id) }}" style="display:contents" onsubmit="return confirm('Delete this teacher?')">
+                                @csrf @method('DELETE')
+                                <button type="submit" class="btn-tbl-del">&#128465; Delete</button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
                 @empty
@@ -148,6 +150,8 @@
         </form>
     </div>
 </div>
+
+@include('partials.timetable-modal', ['slotRouteBase' => url('admin/teachers')])
 @endsection
 
 @push('scripts')
@@ -180,19 +184,12 @@ function editTeacher(id, name, email, deptId, status) {
 // ── Filter persistence ────────────────────────────────────────────────────
 const T_FILTER_KEY = 'adminTeacherFilters_v1';
 
-// The filter bar selects share IDs with the modal form. Scope by parent div
-// to always target the filter bar ones (they appear first in the DOM).
-function _tf(id) {
-    // querySelector picks first match — filter bar is above modal in DOM
-    return document.getElementById(id);
-}
-
 function saveTeacherFilters() {
     try {
         sessionStorage.setItem(T_FILTER_KEY, JSON.stringify({
             search: document.getElementById('searchInput').value,
-            dept:   _tf('fDept').value,
-            status: _tf('fStatus').value,
+            dept:   document.getElementById('fDeptFilter').value,
+            status: document.getElementById('fStatusFilter').value,
         }));
     } catch(e) {}
 }
@@ -202,17 +199,17 @@ function restoreTeacherFilters() {
         const saved = sessionStorage.getItem(T_FILTER_KEY);
         if (!saved) return;
         const s = JSON.parse(saved);
-        document.getElementById('searchInput').value = s.search || '';
-        _tf('fDept').value   = s.dept   || '';
-        _tf('fStatus').value = s.status || '';
+        document.getElementById('searchInput').value        = s.search || '';
+        document.getElementById('fDeptFilter').value   = s.dept   || '';
+        document.getElementById('fStatusFilter').value = s.status || '';
     } catch(e) {}
 }
 
 function filterTable() { applyFilters(); }
 function applyFilters() {
     const query  = document.getElementById('searchInput').value.toLowerCase().trim();
-    const dept   = _tf('fDept').value.toLowerCase();
-    const status = _tf('fStatus').value;
+    const dept   = document.getElementById('fDeptFilter').value.toLowerCase();
+    const status = document.getElementById('fStatusFilter').value;
     let count = 0;
     document.querySelectorAll('#teacherTable tbody tr').forEach(row => {
         const ok = (!query  || row.textContent.toLowerCase().includes(query))
@@ -229,9 +226,9 @@ function applyFilters() {
     saveTeacherFilters();
 }
 function clearFilters() {
-    document.getElementById('searchInput').value = '';
-    _tf('fDept').value   = '';
-    _tf('fStatus').value = '';
+    document.getElementById('searchInput').value            = '';
+    document.getElementById('fDeptFilter').value   = '';
+    document.getElementById('fStatusFilter').value = '';
     try { sessionStorage.removeItem(T_FILTER_KEY); } catch(e) {}
     applyFilters();
 }

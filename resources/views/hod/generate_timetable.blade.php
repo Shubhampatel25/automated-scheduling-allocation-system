@@ -8,6 +8,10 @@
     @include('hod.partials.sidebar')
 @endsection
 
+@push('styles')
+<link rel="stylesheet" href="{{ asset('css/manage.css') }}">
+@endpush
+
 @section('content')
 
 <style>
@@ -50,13 +54,6 @@
 .status-active   { background:#dcfce7; color:#16a34a; }
 .status-draft    { background:#fef9c3; color:#854d0e; }
 .status-archived { background:#f1f5f9; color:#64748b; }
-.btn-action { padding:5px 12px; border:none; border-radius:6px; font-size:.8rem; font-weight:600; cursor:pointer; text-decoration:none; display:inline-block; }
-.btn-activate { background:#dcfce7; color:#16a34a; }
-.btn-activate:hover { background:#bbf7d0; }
-.btn-delete { background:#fee2e2; color:#dc2626; }
-.btn-delete:hover { background:#fca5a5; }
-.btn-view { background:#e0e7ff; color:#4338ca; }
-.btn-view:hover { background:#c7d2fe; }
 .empty-state { text-align:center; padding:40px 20px; color:#94a3b8; }
 .empty-state .empty-icon { font-size:2.5rem; margin-bottom:10px; }
 .actions-cell { display:flex; gap:6px; align-items:center; }
@@ -207,23 +204,25 @@
                                 @if($tt->status === 'draft')
                                     <form method="POST" action="{{ route('hod.timetable.activate', $tt->id) }}">
                                         @csrf
-                                        <button type="submit" class="btn-action btn-activate">Activate</button>
+                                        <button type="submit" class="btn-tbl-activate">Activate</button>
                                     </form>
                                     <form method="POST" action="{{ route('hod.timetable.delete', $tt->id) }}"
                                           onsubmit="return confirm('Delete this timetable?')">
                                         @csrf
-                                        <button type="submit" class="btn-action btn-delete">Delete</button>
+                                        <button type="submit" class="btn-tbl-del">&#128465; Delete</button>
                                     </form>
                                 @elseif($tt->status === 'active')
                                     <form method="POST" action="{{ route('hod.timetable.deactivate', $tt->id) }}"
                                           onsubmit="return confirm('Deactivate this timetable? It will move back to draft.')">
                                         @csrf
-                                        <button type="submit" class="btn-action" style="background:#fef3c7;color:#92400e;">Deactivate</button>
+                                        <button type="submit" class="btn-tbl-warn">Deactivate</button>
                                     </form>
                                 @endif
                                 @if($tt->status === 'active' || ($tt->status === 'draft' && ($tt->slot_count ?? 0) > 0))
-                                    <a href="{{ route('hod.view-timetable', ['timetable_id' => $tt->id]) }}"
-                                       class="btn-action btn-view">&#128065; View</a>
+                                    <button class="btn-tbl-view"
+                                            onclick="openTimetableModal({{ $tt->id }}, '{{ addslashes($tt->department->name ?? 'N/A') }}', '{{ $tt->term }} {{ $tt->year }}', {{ $tt->semester ?? 0 }})">
+                                        &#128065; View
+                                    </button>
                                 @endif
                                 @if($tt->status === 'archived')
                                     <span style="color:#94a3b8;font-size:.82rem;">Archived</span>
@@ -272,4 +271,5 @@ semesterSelect.addEventListener('change', function () {
 });
 </script>
 
+@include('partials.timetable-modal', ['slotRouteBase' => url('hod/timetable')])
 @endsection

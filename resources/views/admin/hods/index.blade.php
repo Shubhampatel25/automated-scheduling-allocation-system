@@ -60,16 +60,16 @@
                         </span>
                     </td>
                     <td>
-                        <button class="link-edit" onclick="editHod({{ $hod->id }}, '{{ addslashes($hod->teacher->name ?? '') }}', '{{ $hod->teacher->email ?? '' }}', '{{ $hod->department_id }}', '{{ $hod->status }}')">Edit</button>
-                        <span class="sep"> | </span>
-                        <a href="{{ route('admin.hods.timetable', $hod->id) }}"
-                           style="color:#6366f1;font-size:0.82rem;font-weight:600;text-decoration:none;white-space:nowrap;"
-                           title="View department timetable">&#128197; Timetable</a>
-                        <span class="sep"> | </span>
-                        <form method="POST" action="{{ route('admin.hods.destroy', $hod->id) }}" style="display:inline" onsubmit="return confirm('Remove this HOD?')">
-                            @csrf @method('DELETE')
-                            <button type="submit" class="link-del">Delete</button>
-                        </form>
+                        <div class="action-btns">
+                            <button class="btn-tbl-edit" onclick="editHod({{ $hod->id }}, '{{ addslashes($hod->teacher->name ?? '') }}', '{{ $hod->teacher->email ?? '' }}', '{{ $hod->department_id }}', '{{ $hod->status }}')">&#9998; Edit</button>
+                            <button class="btn-tbl-view"
+                                    onclick="openTimetableModal({{ $hod->id }}, '{{ addslashes($hod->teacher->name ?? 'HOD') }}', '{{ addslashes($hod->department->name ?? '') }}', 0)"
+                                    title="View teaching timetable">&#128065; Timetable</button>
+                            <form method="POST" action="{{ route('admin.hods.destroy', $hod->id) }}" style="display:contents" onsubmit="return confirm('Remove this HOD?')">
+                                @csrf @method('DELETE')
+                                <button type="submit" class="btn-tbl-del">&#128465; Delete</button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
                 @empty
@@ -132,6 +132,8 @@
         </form>
     </div>
 </div>
+
+@include('partials.timetable-modal', ['slotRouteBase' => url('admin/hods')])
 @endsection
 
 @push('scripts')

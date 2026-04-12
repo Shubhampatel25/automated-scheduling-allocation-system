@@ -10,35 +10,6 @@
 
 @push('styles')
 <link rel="stylesheet" href="{{ asset('css/manage.css') }}">
-<style>
-.filter-bar {
-    display:flex; flex-wrap:wrap; gap:10px; align-items:center;
-    margin-bottom:16px; padding:12px 16px;
-    background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px;
-}
-.filter-bar label { font-size:.78rem; font-weight:600; color:#6b7280; margin-right:4px; }
-.filter-bar select {
-    padding:6px 10px; border:1px solid #d1d5db; border-radius:6px;
-    font-size:.85rem; color:#374151; background:#fff; cursor:pointer;
-}
-.filter-bar select:focus { outline:none; border-color:#6366f1; }
-.btn-clear-filters {
-    padding:6px 14px; background:none; border:1px solid #d1d5db;
-    border-radius:6px; font-size:.82rem; color:#6b7280; cursor:pointer;
-}
-.btn-clear-filters:hover { background:#f3f4f6; }
-.filter-badge {
-    display:none; font-size:.72rem; background:#6366f1; color:#fff;
-    border-radius:10px; padding:2px 8px; font-weight:600; margin-left:4px;
-}
-.modal-sem-tab {
-    padding:8px 16px; background:none; border:none;
-    border-bottom:3px solid transparent; cursor:pointer;
-    font-size:.82rem; font-weight:500; color:#6b7280;
-    margin-bottom:-2px; white-space:nowrap;
-}
-.modal-sem-tab.modal-sem-active { color:#6366f1; border-bottom-color:#6366f1; font-weight:600; }
-</style>
 @endpush
 
 @section('content')
@@ -106,6 +77,7 @@
             <span class="filter-badge" id="filterCount"></span>
         </div>
 
+        <div class="table-scroll">
         <table class="data-table" id="studentTable">
             <thead>
                 <tr>
@@ -135,24 +107,18 @@
                     data-term="{{ strtolower($regTerm) }}">
                     <td>{{ $student->roll_no }}</td>
                     <td style="font-weight:600;color:#1e293b;">{{ $student->name }}</td>
-                    <td style="color:#6366f1;font-size:.83rem;">{{ $student->email ?? 'N/A' }}</td>
-                    <td>
-                        <span style="background:#ede9fe;color:#6366f1;padding:2px 8px;border-radius:10px;font-size:.75rem;font-weight:600;">
-                            Sem {{ $student->semester }}
-                        </span>
-                    </td>
+                    <td class="email-cell">{{ $student->email ?? 'N/A' }}</td>
+                    <td><span class="sem-badge">Sem {{ $student->semester }}</span></td>
                     <td>
                         @if($regTerm)
-                            <span style="font-size:.75rem;background:#ede9fe;color:#5b21b6;padding:2px 7px;border-radius:8px;font-weight:600;white-space:nowrap;">
-                                {{ $regTerm }}
-                            </span>
+                            <span class="term-badge">{{ $regTerm }}</span>
                         @else
-                            <span style="color:#9ca3af;font-size:.8rem;">—</span>
+                            <span class="text-muted-cell">—</span>
                         @endif
                     </td>
                     <td>
                         @if($activeRegs->count() > 0)
-                            <button class="link-edit" style="color:#6366f1;font-weight:500"
+                            <button class="btn-tbl-view"
                                 onclick="viewCourses('{{ addslashes($student->name) }}', {{ $activeRegs->values()->toJson() }})">
                                 {{ $enrolledRegs->count() }} enrolled
                                 @if($completedRegs->count() > 0)
@@ -164,9 +130,9 @@
                         @endif
                     </td>
                     <td>
-                        <a href="{{ route('hod.students.timetable', $student->id) }}"
-                           style="color:#6366f1;font-size:.82rem;font-weight:600;text-decoration:none;white-space:nowrap;"
-                           title="View timetable for {{ $student->name }}">&#128197; Timetable</a>
+                        <button class="btn-tbl-view"
+                                onclick="openTimetableModal({{ $student->id }}, '{{ addslashes($student->name) }}', 'Sem {{ $student->semester }}', {{ (int)$student->semester }})"
+                                title="View timetable for {{ $student->name }}">&#128065; Timetable</button>
                     </td>
                 </tr>
                 @empty
@@ -174,6 +140,7 @@
                 @endforelse
             </tbody>
         </table>
+        </div>{{-- /.table-scroll --}}
         <div id="noResultsMsg" style="display:none;text-align:center;padding:24px;color:#9ca3af;font-size:.9rem;">No students match the selected filters.</div>
     </div>
 </div>
@@ -205,6 +172,7 @@
     </div>
 </div>
 
+@include('partials.timetable-modal', ['slotRouteBase' => url('hod/students')])
 @endsection
 
 @push('scripts')

@@ -11,82 +11,22 @@
 @push('styles')
 <link rel="stylesheet" href="{{ asset('css/manage.css') }}">
 <style>
-.filter-bar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: center;
-    margin-bottom: 16px;
-    padding: 12px 16px;
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-}
-.filter-bar label {
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: #6b7280;
-    margin-right: 4px;
-}
-.filter-bar select {
-    padding: 6px 10px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    color: #374151;
-    background: #fff;
-    cursor: pointer;
-}
-.filter-bar select:focus {
-    outline: none;
-    border-color: #4f46e5;
-}
-.btn-clear-filters {
-    padding: 6px 14px;
-    background: none;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    font-size: 0.82rem;
-    color: #6b7280;
-    cursor: pointer;
-}
-.btn-clear-filters:hover { background: #f3f4f6; }
-.filter-badge {
-    display: none;
-    font-size: 0.72rem;
-    background: #4f46e5;
-    color: #fff;
-    border-radius: 10px;
-    padding: 2px 8px;
-    font-weight: 600;
-    margin-left: 4px;
-}
-.modal-sem-tab {
-    padding: 8px 16px;
-    background: none;
-    border: none;
-    border-bottom: 3px solid transparent;
-    cursor: pointer;
-    font-size: 0.82rem;
-    font-weight: 500;
-    color: #6b7280;
-    margin-bottom: -2px;
-    white-space: nowrap;
-}
-.modal-sem-tab.modal-sem-active {
-    color: #4f46e5;
-    border-bottom-color: #4f46e5;
-    font-weight: 600;
-}
+/* ── Student cell (stacked name/roll/email) ─── */
+.student-cell { display: flex; flex-direction: column; gap: 1px; }
+.student-cell .s-name { font-weight: 600; color: #111827; font-size: 0.88rem; }
+.student-cell .s-roll { font-size: 0.74rem; color: #6b7280; }
+.student-cell .s-email { font-size: 0.74rem; color: #6366f1; }
+
+/* ── Sem + Term cell ────────────────────────── */
+.sem-cell { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+
+/* ── Responsive popup table ─────────────────── */
+.modal-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.modal-table-wrap .data-table { margin: 0; min-width: 480px; }
 </style>
 @endpush
 
 @section('content')
-@if(session('success'))
-<div style="background:#d1fae5;color:#065f46;padding:12px 18px;border-radius:8px;margin-bottom:16px;font-size:0.9rem;border:1px solid #a7f3d0;">
-    &#10003; {{ session('success') }}
-</div>
-@endif
 <div class="manage-header">
     <div class="manage-title">
         <h2>Students</h2>
@@ -161,15 +101,13 @@
             <span class="filter-badge" id="filterCount"></span>
         </div>
 
+        <div style="overflow-x:auto;">
         <table class="data-table" id="studentTable">
             <thead>
                 <tr>
-                    <th>Roll ID</th>
-                    <th>Name</th>
-                    <th>Email</th>
+                    <th>Student</th>
                     <th>Department</th>
-                    <th>Semester</th>
-                    <th>Reg. Term</th>
+                    <th>Sem / Term</th>
                     <th>Enrolled Courses</th>
                     <th>Action</th>
                 </tr>
@@ -183,7 +121,6 @@
                     $resultFlags   = $completedRegs->pluck('result')->filter()->unique()->implode(' ');
                     if ($enrolledRegs->isNotEmpty()) $resultFlags = trim($resultFlags . ' enrolled');
                     if (!$resultFlags) $resultFlags = 'none';
-                    // Get term/year from currently enrolled sections (latest year first)
                     $currentSection = $enrolledRegs->sortByDesc(fn($r) => $r->courseSection->year ?? 0)->first()?->courseSection;
                     $regTerm = $currentSection ? trim(($currentSection->term ?? '') . ' ' . ($currentSection->year ?? '')) : '';
                 @endphp
@@ -191,51 +128,55 @@
                     data-semester="{{ $student->semester }}"
                     data-result="{{ $resultFlags }}"
                     data-term="{{ strtolower($regTerm) }}">
-                    <td>{{ $student->roll_no }}</td>
-                    <td>{{ $student->name }}</td>
-                    <td style="color:#4f46e5;font-size:0.83rem;">{{ $student->email ?? 'N/A' }}</td>
-                    <td>{{ $student->department->name ?? 'N/A' }}</td>
-                    <td>{{ $student->semester }}</td>
                     <td>
-                        @if($regTerm)
-                            <span style="font-size:0.75rem;background:#ede9fe;color:#5b21b6;padding:2px 7px;border-radius:8px;font-weight:600;white-space:nowrap;">
-                                {{ $regTerm }}
-                            </span>
-                        @else
-                            <span style="color:#9ca3af;font-size:0.8rem;">—</span>
-                        @endif
+                        <div class="student-cell">
+                            <span class="s-name">{{ $student->name }}</span>
+                            <span class="s-roll">{{ $student->roll_no }}</span>
+                            @if($student->email)
+                                <span class="s-email">{{ $student->email }}</span>
+                            @endif
+                        </div>
+                    </td>
+                    <td>{{ $student->department->name ?? 'N/A' }}</td>
+                    <td>
+                        <div class="sem-cell">
+                            <span class="sem-badge">Sem {{ $student->semester }}</span>
+                            @if($regTerm)
+                                <span class="term-badge">{{ $regTerm }}</span>
+                            @endif
+                        </div>
                     </td>
                     <td>
                         @if($activeRegs->count() > 0)
-                            <button class="link-edit" style="color:#4f46e5;font-weight:500"
+                            <button class="btn-tbl-view"
                                 onclick="viewCourses('{{ addslashes($student->name) }}', {{ $activeRegs->values()->toJson() }})">
                                 {{ $enrolledRegs->count() }} enrolled
-                                @if($activeRegs->where('status','completed')->count() > 0)
-                                    &bull; {{ $activeRegs->where('status','completed')->count() }} completed
+                                @if($completedRegs->count() > 0)
+                                    &bull; {{ $completedRegs->count() }} done
                                 @endif
                             </button>
                         @else
-                            <span style="color:#9ca3af">None</span>
+                            <span style="color:#9ca3af;font-size:0.82rem;">None</span>
                         @endif
                     </td>
                     <td>
-                        <button class="link-edit" onclick="editStudent({{ $student->id }}, '{{ addslashes($student->name) }}', '{{ $student->roll_no }}', '{{ $student->department_id }}', '{{ $student->semester }}')">Edit</button>
-                        <span class="sep"> | </span>
-                        <a href="{{ route('admin.students.timetable', $student->id) }}"
-                           style="color:#6366f1;font-size:0.82rem;font-weight:600;text-decoration:none;white-space:nowrap;"
-                           title="View timetable for {{ $student->name }}">&#128197; Timetable</a>
-                        <span class="sep"> | </span>
-                        <form method="POST" action="{{ route('admin.students.destroy', $student->id) }}" style="display:inline" onsubmit="return confirm('Delete this student?')">
-                            @csrf @method('DELETE')
-                            <button type="submit" class="link-del">Delete</button>
-                        </form>
+                        <div class="action-btns">
+                            <button class="btn-tbl-edit" onclick="editStudent({{ $student->id }}, '{{ addslashes($student->name) }}', '{{ $student->roll_no }}', '{{ $student->department_id }}', '{{ $student->semester }}', '{{ addslashes($student->email ?? '') }}')">&#9998; Edit</button>
+                            <button class="btn-tbl-view"
+                                    onclick="openTimetableModal({{ $student->id }}, '{{ addslashes($student->name) }}', 'Sem {{ $student->semester }}', {{ (int)$student->semester }})">&#128197; Timetable</button>
+                            <form method="POST" action="{{ route('admin.students.destroy', $student->id) }}" style="display:contents" onsubmit="return confirm('Delete this student?')">
+                                @csrf @method('DELETE')
+                                <button type="submit" class="btn-tbl-del">&#128465; Delete</button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
                 @empty
-                <tr><td colspan="8" style="text-align:center;padding:24px;color:#9ca3af">No students found.</td></tr>
+                <tr><td colspan="5" style="text-align:center;padding:24px;color:#9ca3af">No students found.</td></tr>
                 @endforelse
             </tbody>
         </table>
+        </div>{{-- /overflow-x wrapper --}}
         <div id="noResultsMsg" style="display:none;text-align:center;padding:24px;color:#9ca3af;font-size:0.9rem;">No students match the selected filters.</div>
     </div>
 </div>
@@ -270,13 +211,11 @@
                     </div>
                 </div>
                 <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:16px;">
-                    <button type="button" onclick="closeCompleteModal()"
-                        style="padding:8px 18px;border:1px solid #d1d5db;border-radius:6px;background:#fff;cursor:pointer;font-size:0.875rem;">
+                    <button type="button" onclick="closeCompleteModal()" class="btn-cancel-sm">
                         Cancel
                     </button>
-                    <button type="submit"
-                        style="padding:8px 18px;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.875rem;font-weight:600;">
-                        Save & Complete
+                    <button type="submit" class="btn-complete">
+                        Save &amp; Complete
                     </button>
                 </div>
             </div>
@@ -286,7 +225,7 @@
 
 <!-- Courses Detail Modal -->
 <div class="modal-backdrop" id="coursesModalBackdrop">
-    <div class="modal-card" style="max-width:820px">
+    <div class="modal-card" style="max-width:min(780px,96vw);width:100%;">
         <div class="modal-top">
             <h3 id="coursesModalTitle">Student Courses</h3>
             <button class="modal-close-btn" onclick="closeCoursesModal()">&times;</button>
@@ -294,17 +233,17 @@
         <div id="coursesSuccessMsg" style="display:none;background:#d1fae5;color:#065f46;padding:10px 16px;font-size:0.875rem;border-bottom:1px solid #a7f3d0;"></div>
 
         {{-- Semester filter tabs --}}
-        <div id="coursesFilterTabs" style="display:flex;gap:0;border-bottom:2px solid #e5e7eb;padding:0 16px;background:#fff;flex-wrap:wrap;"></div>
+        <div id="coursesFilterTabs" style="display:flex;gap:0;border-bottom:2px solid #e5e7eb;padding:0 16px;background:#fff;flex-wrap:wrap;overflow-x:auto;"></div>
 
-        <div class="card-body" id="coursesModalBody" style="padding:0">
-            <table class="data-table" style="margin:0">
+        <div class="card-body modal-table-wrap" id="coursesModalBody" style="padding:0">
+            <table class="data-table" style="margin:0;min-width:480px">
                 <thead>
                     <tr>
                         <th>Code</th>
-                        <th>Course Name</th>
-                        <th>Semester</th>
-                        <th>Section</th>
-                        <th>Registered At</th>
+                        <th>Course</th>
+                        <th>Sem</th>
+                        <th>Section / Term</th>
+                        <th>Reg. Date</th>
                         <th>Status</th>
                         <th>Action</th>
                     </tr>
@@ -341,8 +280,12 @@
             <div class="field-group">
                 <label>Roll No</label>
                 <input type="text" name="roll_no" id="fRoll" value="{{ old('roll_no') }}" placeholder="e.g. CS-2401" required oninput="previewEmail()">
+            </div>
+            <div class="field-group">
+                <label>Email <span style="font-weight:400;color:#9ca3af;font-size:0.78rem;">(optional — auto-generated if blank)</span></label>
+                <input type="email" name="email" id="fEmail" value="{{ old('email') }}" placeholder="student@example.com" oninput="previewEmail()">
                 <div id="emailPreview" style="margin-top:5px;font-size:0.78rem;color:#6b7280;display:none;">
-                    &#9993; Email will be: <span id="emailPreviewVal" style="color:#4f46e5;font-weight:600;"></span>
+                    &#9993; Will auto-generate: <span id="emailPreviewVal" style="color:#4f46e5;font-weight:600;"></span>
                 </div>
             </div>
             <div class="field-group">
@@ -369,6 +312,8 @@
         </form>
     </div>
 </div>
+
+@include('partials.timetable-modal', ['slotRouteBase' => url('admin/students')])
 @endsection
 
 @push('scripts')
@@ -378,6 +323,12 @@ const completeBaseUrl = "{{ url('admin/registrations') }}";
 const csrfToken       = "{{ csrf_token() }}";
 
 function previewEmail() {
+    const emailField = document.getElementById('fEmail');
+    // Only show auto-generate preview if the email field is empty
+    if (emailField && emailField.value.trim()) {
+        document.getElementById('emailPreview').style.display = 'none';
+        return;
+    }
     const name    = document.getElementById('fName').value.trim();
     const rollNo  = document.getElementById('fRoll').value.trim();
     const preview = document.getElementById('emailPreview');
@@ -405,13 +356,15 @@ function closeModal() {
     document.getElementById('modalBackdrop').classList.remove('show');
 }
 
-function editStudent(id, name, roll, deptId, sem) {
+function editStudent(id, name, roll, deptId, sem, email) {
     document.getElementById('studentForm').action = `/admin/students/${id}`;
     document.getElementById('formMethod').value   = 'PUT';
     document.getElementById('fName').value        = name;
     document.getElementById('fRoll').value        = roll;
+    document.getElementById('fEmail').value       = email || '';
     document.getElementById('fDept').value        = deptId;
     document.getElementById('fSem').value         = sem;
+    document.getElementById('emailPreview').style.display = 'none';
     document.getElementById('modalTitle').textContent = 'Edit Student';
     document.getElementById('modalBackdrop').classList.add('show');
 }

@@ -262,6 +262,11 @@ class TimetableController extends Controller
             $errors[] = 'Teacher already has a class at the new time.';
         }
 
+        // ── Teacher 6-hour daily limit (exclude this slot so old booking isn't double-counted) ──
+        if ($this->constraintService->teacherExceedsDailyHours($teacherId, $day, $startTime, $endTime, $term, $year, $timetable->id, $slot->id)) {
+            $errors[] = 'Teacher exceeds 6-hour daily limit.';
+        }
+
         // ── Section overlap ───────────────────────────────────────────────────
         if ($this->constraintService->sectionHasOverlap($sectionId, $day, $startTime, $endTime, $term, $year, $timetable->id, $slot->id)) {
             $errors[] = 'This section already has a class at the new time.';
@@ -326,7 +331,7 @@ class TimetableController extends Controller
             'created_at'  => now(),
         ]);
 
-        return redirect()->route('hod.view-timetable', ['timetable' => $timetable->id])
+        return redirect()->route('hod.department-timetable', ['timetable_id' => $timetable->id])
             ->with('success', 'Slot rescheduled successfully.');
     }
 
@@ -361,7 +366,7 @@ class TimetableController extends Controller
             'created_at'  => now(),
         ]);
 
-        return redirect()->route('hod.view-timetable', ['timetable' => $timetable->id])
+        return redirect()->route('hod.department-timetable', ['timetable_id' => $timetable->id])
             ->with('success', 'Slot removed from the timetable.');
     }
 

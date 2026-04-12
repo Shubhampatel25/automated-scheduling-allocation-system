@@ -219,8 +219,12 @@ class TimetableGenerationService
         $scheduledCount   = 0;
         $unscheduledCount = 0;
 
-        // dayLoad tracks how many slots are on each day so far (soft constraint)
+        // dayLoad tracks how many slots are on each day so far (global soft constraint)
         $dayLoad = array_fill_keys($this->days, 0);
+
+        // Rule 2: per-semester day load — [semester => [day => count]]
+        // Keeps each semester's sessions distributed evenly across the week.
+        $semesterDayLoad = [];
 
         foreach ($sorted as $item) {
             /** @var CourseAssignment $assignment */
@@ -232,6 +236,7 @@ class TimetableGenerationService
             $component     = $assignment->component;
             $teacherId     = $assignment->teacher_id;
             $enrolled      = (int) ($section->enrolled_students ?? 0);
+            $semester      = (int) ($course->semester ?? 0); // Rule 2 grouping key
 
             // Track which days this assignment already occupies so sessions are spread
             $placedOnDays = [];
@@ -240,70 +245,115 @@ class TimetableGenerationService
             for ($sessionIndex = 0; $sessionIndex < $requiredCount; $sessionIndex++) {
                 $placed = false;
 
-                // Get candidate (day, slotIndex) pairs sorted by soft constraints
-                $candidates = $this->candidateSlots($component, $dayLoad, $placedOnDays);
+                // Get candidate (day, slotIndex) pairs sorted by soft constraints.
+                // Rule 2 is baked in: days where this semester has fewer slots come first.
+                $allCandidates = $this->candidateSlots(
+                    $component, $dayLoad, $placedOnDays, $semester, $semesterDayLoad
+                );
 
-                foreach ($candidates as [$day, $slotIdx]) {
-                    $slot      = $this->timeSlots[$slotIdx];
-                    $startTime = $slot['start'];
-                    $endTime   = $slot['end'];
+                // ── Rule 1: professor break — two-pass approach ───────────────
+                //
+                // Pass 1 (preferred): only slots that do NOT create a back-to-back
+                //   situation for this teacher on this day.
+                // Pass 2 (fallback):  back-to-back slots, tried only when pass 1
+                //   finds no feasible placement (all hard constraints failed).
+                //
+                // This keeps the rule as a strong soft constraint: always respected
+                // when possible, gracefully relaxed when no other slot is available.
+                $preferredCandidates  = [];
+                $backToBackCandidates = [];
 
-                    // ── Hard constraint: teacher availability ─────────────────
-                    if (!$this->constraints->isTeacherAvailableForSlot(
-                        $teacherId, $day, $startTime, $endTime, $term, $year
+                foreach ($allCandidates as $candidate) {
+                    [$cDay, $cSlotIdx] = $candidate;
+                    $cSlot = $this->timeSlots[$cSlotIdx];
+
+                    if ($this->constraints->teacherWouldCreateBackToBack(
+                        $teacherId, $cDay, $cSlot['start'], $cSlot['end'], $term, $year, $timetable->id
                     )) {
-                        continue;
+                        $backToBackCandidates[] = $candidate;
+                    } else {
+                        $preferredCandidates[] = $candidate;
                     }
+                }
 
-                    // ── Hard constraint: teacher overlap (DB + draft) ──────────
-                    if ($this->constraints->teacherHasOverlap(
-                        $teacherId, $day, $startTime, $endTime, $term, $year, $timetable->id
-                    )) {
-                        continue;
+                // Preferred first; only try back-to-back slots if preferred set
+                // is entirely blocked by hard constraints.
+                $candidateSets = array_filter([$preferredCandidates, $backToBackCandidates]);
+
+                foreach ($candidateSets as $candidates) {
+                    foreach ($candidates as [$day, $slotIdx]) {
+                        $slot      = $this->timeSlots[$slotIdx];
+                        $startTime = $slot['start'];
+                        $endTime   = $slot['end'];
+
+                        // ── Hard constraint: teacher availability ──────────────
+                        if (!$this->constraints->isTeacherAvailableForSlot(
+                            $teacherId, $day, $startTime, $endTime, $term, $year
+                        )) {
+                            continue;
+                        }
+
+                        // ── Hard constraint: teacher overlap (DB + draft) ──────
+                        if ($this->constraints->teacherHasOverlap(
+                            $teacherId, $day, $startTime, $endTime, $term, $year, $timetable->id
+                        )) {
+                            continue;
+                        }
+
+                        // ── Hard constraint: teacher 6-hour daily limit ────────
+                        if ($this->constraints->teacherExceedsDailyHours(
+                            $teacherId, $day, $startTime, $endTime, $term, $year, $timetable->id
+                        )) {
+                            continue;
+                        }
+
+                        // ── Hard constraint: section overlap ───────────────────
+                        if ($this->constraints->sectionHasOverlap(
+                            $section->id, $day, $startTime, $endTime, $term, $year, $timetable->id
+                        )) {
+                            continue;
+                        }
+
+                        // ── Hard constraint: student cross-section overlap ──────
+                        if ($this->constraints->studentsHaveOverlap(
+                            $section->id, $day, $startTime, $endTime, $term, $year, $timetable->id
+                        )) {
+                            continue;
+                        }
+
+                        // ── Find the best room for this slot ───────────────────
+                        $room = $this->findBestRoom(
+                            $enrolled, $component, $day, $startTime, $endTime,
+                            $term, $year, $timetable->id, $rooms
+                        );
+
+                        if ($room === null) {
+                            continue; // no valid room at this time — try next slot
+                        }
+
+                        // ── All constraints satisfied — save slot ──────────────
+                        TimetableSlot::create([
+                            'timetable_id'      => $timetable->id,
+                            'course_section_id' => $section->id,
+                            'teacher_id'        => $teacherId,
+                            'room_id'           => $room->id,
+                            'day_of_week'       => $day,
+                            'start_time'        => $startTime,
+                            'end_time'          => $endTime,
+                            'component'         => $component,
+                            'created_at'        => now(),
+                        ]);
+
+                        // Update global day load (all courses)
+                        $dayLoad[$day]++;
+                        // Update per-semester day load (Rule 2)
+                        $semesterDayLoad[$semester][$day] = ($semesterDayLoad[$semester][$day] ?? 0) + 1;
+
+                        $placedOnDays[] = $day;
+                        $placedCount++;
+                        $placed = true;
+                        break 2; // exit both the candidates loop and the candidateSets loop
                     }
-
-                    // ── Hard constraint: section overlap ──────────────────────
-                    if ($this->constraints->sectionHasOverlap(
-                        $section->id, $day, $startTime, $endTime, $term, $year, $timetable->id
-                    )) {
-                        continue;
-                    }
-
-                    // ── Hard constraint: student cross-section overlap ─────────
-                    if ($this->constraints->studentsHaveOverlap(
-                        $section->id, $day, $startTime, $endTime, $term, $year, $timetable->id
-                    )) {
-                        continue;
-                    }
-
-                    // ── Find the best room for this slot ──────────────────────
-                    $room = $this->findBestRoom(
-                        $enrolled, $component, $day, $startTime, $endTime,
-                        $term, $year, $timetable->id, $rooms
-                    );
-
-                    if ($room === null) {
-                        continue; // no valid room at this time — try next slot
-                    }
-
-                    // ── All hard constraints satisfied — save slot ─────────────
-                    TimetableSlot::create([
-                        'timetable_id'      => $timetable->id,
-                        'course_section_id' => $section->id,
-                        'teacher_id'        => $teacherId,
-                        'room_id'           => $room->id,
-                        'day_of_week'       => $day,
-                        'start_time'        => $startTime,
-                        'end_time'          => $endTime,
-                        'component'         => $component,
-                        'created_at'        => now(),
-                    ]);
-
-                    $dayLoad[$day]++;
-                    $placedOnDays[] = $day;
-                    $placedCount++;
-                    $placed = true;
-                    break;
                 }
 
                 if (!$placed) {
@@ -501,28 +551,49 @@ class TimetableGenerationService
     /**
      * Return an ordered list of [day, slotIndex] pairs to try for one session.
      *
-     * Soft constraints applied here:
-     *   - Days with fewer existing slots go first (spread across the week)
-     *   - Days already used by this assignment for a previous session go last
-     *     (multi-session courses prefer different days)
-     *   - Theory prefers morning-to-afternoon order; labs accept any order
+     * Soft constraints applied here (priority order):
+     *   1. Days not yet used by this assignment's earlier sessions go first
+     *      (multi-session courses spread across the week)
+     *   2. Rule 2 — Semester/department balance: days where this semester
+     *      already has fewer sessions go before days already loaded for that
+     *      semester (even distribution per-semester, not just overall)
+     *   3. Days with fewer overall slots go before heavier days (global spread)
+     *   4. Theory prefers morning-to-afternoon slot order; labs accept any order
+     *
+     * @param string $component       'theory' | 'lab'
+     * @param array  $dayLoad         [day => total-slot-count] across all courses
+     * @param array  $placedOnDays    Days already used for previous sessions of THIS assignment
+     * @param int    $semester        Semester number (Rule 2 key)
+     * @param array  $semesterDayLoad [semester => [day => count]] tracked per-semester
      */
     private function candidateSlots(
         string $component,
         array  $dayLoad,
-        array  $placedOnDays
+        array  $placedOnDays,
+        int    $semester        = 0,
+        array  $semesterDayLoad = []
     ): array {
-        // Sort days: unused-by-this-assignment first, then by overall load
         $sortedDays = $this->days;
-        usort($sortedDays, function (string $a, string $b) use ($dayLoad, $placedOnDays) {
+
+        usort($sortedDays, function (string $a, string $b) use (
+            $dayLoad, $placedOnDays, $semester, $semesterDayLoad
+        ) {
+            // Priority 1: unused-by-this-assignment days first
             $aUsed = in_array($a, $placedOnDays) ? 1 : 0;
             $bUsed = in_array($b, $placedOnDays) ? 1 : 0;
-
             if ($aUsed !== $bUsed) {
-                return $aUsed <=> $bUsed; // unused days first
+                return $aUsed <=> $bUsed;
             }
 
-            return ($dayLoad[$a] ?? 0) <=> ($dayLoad[$b] ?? 0); // lighter days first
+            // Priority 2 (Rule 2): day lighter for this semester goes first
+            $semA = $semesterDayLoad[$semester][$a] ?? 0;
+            $semB = $semesterDayLoad[$semester][$b] ?? 0;
+            if ($semA !== $semB) {
+                return $semA <=> $semB;
+            }
+
+            // Priority 3: day lighter overall goes first
+            return ($dayLoad[$a] ?? 0) <=> ($dayLoad[$b] ?? 0);
         });
 
         $slotOrder = $component === 'lab' ? $this->labSlotOrder : $this->theorySlotOrder;
@@ -627,20 +698,32 @@ class TimetableGenerationService
             return "No {$component} room with capacity ≥ {$enrolled} exists.";
         }
 
-        // Check if teacher is fully blocked
-        $teacherFullyBlocked = true;
+        // Check if teacher is fully blocked (overlap, availability, or daily hour cap)
+        $teacherFullyBlocked  = true;
+        $teacherHitDailyLimit = false;
         foreach ($this->days as $d) {
             foreach ($this->timeSlots as $s) {
-                if ($this->constraints->isTeacherAvailableForSlot($teacherId, $d, $s['start'], $s['end'], $term, $year)
-                    && !$this->constraints->teacherHasOverlap($teacherId, $d, $s['start'], $s['end'], $term, $year, $timetableId)) {
-                    $teacherFullyBlocked = false;
-                    break 2;
+                if (!$this->constraints->isTeacherAvailableForSlot($teacherId, $d, $s['start'], $s['end'], $term, $year)) {
+                    continue;
                 }
+                if ($this->constraints->teacherHasOverlap($teacherId, $d, $s['start'], $s['end'], $term, $year, $timetableId)) {
+                    continue;
+                }
+                if ($this->constraints->teacherExceedsDailyHours($teacherId, $d, $s['start'], $s['end'], $term, $year, $timetableId)) {
+                    $teacherHitDailyLimit = true;
+                    continue;
+                }
+                $teacherFullyBlocked = false;
+                break 2;
             }
         }
 
         if ($teacherFullyBlocked) {
-            return 'Teacher is fully booked or unavailable for all remaining time slots.';
+            $reason = 'Teacher is fully booked or unavailable for all remaining time slots.';
+            if ($teacherHitDailyLimit) {
+                $reason .= ' (6-hour daily teaching limit reached on one or more days)';
+            }
+            return $reason;
         }
 
         return 'All valid (day, time, room) combinations were blocked by teacher, room, or section constraints.';

@@ -11,6 +11,7 @@ use App\Models\CourseSection;
 use App\Models\FeePayment;
 use App\Models\StudentCourseRegistration;
 use App\Models\TimetableSlot;
+use App\Services\RegistrationEligibilityService;
 
 class StudentCourseRegistrationController extends Controller
 {
@@ -93,6 +94,29 @@ class StudentCourseRegistrationController extends Controller
                 return back()->with('error',
                     'Fee payment required: Complete your Semester ' . $student->semester
                     . ' fee payment before registering for courses.');
+            }
+        }
+
+        // ── 5b. Sequential semester guard (regular enrollments only) ─────────
+        //    Prevents a student whose DB semester jumped (e.g. 3 → 6) from
+        //    registering for courses beyond their actual sequential progress.
+        //    Uses history-first, then completed registrations; logs + fixes if wrong.
+        if (!$isRetake) {
+            $semAuth = (new RegistrationEligibilityService())->getAuthoritativeSemester($student->id, $student);
+            if ($semAuth['corrected']) {
+                DB::table('students')
+                    ->where('id', $student->id)
+                    ->update(['semester' => $semAuth['semester']]);
+                $student->semester = $semAuth['semester'];
+
+                ActivityLog::create([
+                    'user_id'     => Auth::id(),
+                    'action'      => 'semester_corrected',
+                    'entity_type' => 'student',
+                    'entity_id'   => $student->id,
+                    'details'     => $semAuth['reason'],
+                    'created_at'  => now(),
+                ]);
             }
         }
 
@@ -218,39 +242,51 @@ class StudentCourseRegistrationController extends Controller
             return back()->with('error', 'Unauthorized action.');
         }
 
-        // ── Guard: only enrolled courses can be dropped ───────────────────────
-        // Allowing a drop on an already-dropped or completed registration would
-        // call decrement() a second time and push enrolled_students below zero.
-        if ($registration->status !== 'enrolled') {
-            $label = match ($registration->status) {
-                'dropped'   => 'already been dropped',
-                'completed' => 'already been completed',
-                default     => 'not eligible for dropping',
-            };
-            return back()->with('error', "This course has {$label} and cannot be dropped.");
-        }
-
         $courseName = optional(optional($registration->courseSection)->course)->name ?? 'Unknown Course';
 
-        DB::transaction(function () use ($registration, $student, $courseName) {
-            $registration->update(['status' => 'dropped']);
+        $dropError = null;
+
+        DB::transaction(function () use ($registration, $student, $courseName, &$dropError) {
+            // Re-read the registration under a lock so concurrent requests cannot
+            // both see status='enrolled' and both decrement the counter.
+            $locked = \App\Models\StudentCourseRegistration::lockForUpdate()->find($registration->id);
+
+            // ── Guard: only enrolled courses can be dropped ───────────────────
+            if (!$locked || $locked->status !== 'enrolled') {
+                $status = $locked->status ?? 'unknown';
+                $label = match ($status) {
+                    'dropped'   => 'already been dropped',
+                    'completed' => 'already been completed',
+                    default     => 'not eligible for dropping',
+                };
+                $dropError = "This course has {$label} and cannot be dropped.";
+                return;
+            }
+
+            $locked->update(['status' => 'dropped']);
 
             // Use max(0, ...) so enrolled_students can never go negative even if
             // data was manually modified outside the application.
-            $section = $registration->courseSection()->lockForUpdate()->first();
+            $section = $locked->courseSection()->lockForUpdate()->first();
             if ($section && $section->enrolled_students > 0) {
                 $section->decrement('enrolled_students');
             }
 
-            ActivityLog::create([
-                'user_id'     => Auth::id(),
-                'action'      => 'drop_course',
-                'entity_type' => 'student_course_registration',
-                'entity_id'   => $registration->id,
-                'details'     => 'Student ' . $student->roll_no . ' dropped "' . $courseName . '"',
-                'created_at'  => now(),
-            ]);
+            if (!$dropError) {
+                ActivityLog::create([
+                    'user_id'     => Auth::id(),
+                    'action'      => 'drop_course',
+                    'entity_type' => 'student_course_registration',
+                    'entity_id'   => $registration->id,
+                    'details'     => 'Student ' . $student->roll_no . ' dropped "' . $courseName . '"',
+                    'created_at'  => now(),
+                ]);
+            }
         });
+
+        if ($dropError) {
+            return back()->with('error', $dropError);
+        }
 
         return back()->with('success', 'Course dropped successfully.');
     }
@@ -277,7 +313,10 @@ class StudentCourseRegistrationController extends Controller
                 'status' => 'completed',
                 'result' => $request->result,
             ]);
-            $registration->courseSection->decrement('enrolled_students');
+            $section = $registration->courseSection()->lockForUpdate()->first();
+            if ($section && $section->enrolled_students > 0) {
+                $section->decrement('enrolled_students');
+            }
 
             ActivityLog::create([
                 'user_id'     => Auth::id(),

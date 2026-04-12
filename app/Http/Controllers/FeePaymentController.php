@@ -96,13 +96,15 @@ class FeePaymentController extends Controller
                         ->sum(fn($reg) => $reg->courseSection->course->fee ?? 0);
 
                 DB::table('fee_payments')->insert([
-                    'student_id' => $student->id,
-                    'semester'   => $student->semester,
-                    'year'       => $currentYear,
-                    'amount'     => $totalFee,
-                    'status'     => 'pending',
-                    'paid_at'    => null,
-                    'created_at' => DB::raw('NOW()'),
+                    'student_id'  => $student->id,
+                    'semester'    => $student->semester,
+                    'year'        => $currentYear,
+                    'amount'      => $totalFee,
+                    'type'        => 'regular',
+                    'paid_amount' => 0,
+                    'status'      => 'pending',
+                    'paid_at'     => null,
+                    'created_at'  => DB::raw('NOW()'),
                 ]);
                 $generated++;
             }
@@ -122,14 +124,28 @@ class FeePaymentController extends Controller
             'status'     => 'required|in:paid,pending,overdue,partial',
         ]);
 
+        $duplicate = DB::table('fee_payments')
+            ->where('student_id', $request->student_id)
+            ->where('semester',   $request->semester)
+            ->where('year',       $request->year)
+            ->where('type',       'regular')
+            ->exists();
+
+        if ($duplicate) {
+            return redirect()->route('admin.fee-payments.index')
+                ->with('error', 'A regular fee record already exists for this student, semester, and year.');
+        }
+
         DB::table('fee_payments')->insert([
-            'student_id' => $request->student_id,
-            'semester'   => $request->semester,
-            'year'       => $request->year,
-            'amount'     => $request->amount,
-            'status'     => $request->status,
-            'paid_at'    => $request->status === 'paid' ? DB::raw('NOW()') : null,
-            'created_at' => DB::raw('NOW()'),
+            'student_id'  => $request->student_id,
+            'semester'    => $request->semester,
+            'year'        => $request->year,
+            'amount'      => $request->amount,
+            'type'        => 'regular',
+            'paid_amount' => 0,
+            'status'      => $request->status,
+            'paid_at'     => $request->status === 'paid' ? DB::raw('NOW()') : null,
+            'created_at'  => DB::raw('NOW()'),
         ]);
 
         return redirect()->route('admin.fee-payments.index')
@@ -190,6 +206,7 @@ class FeePaymentController extends Controller
             abort(403, 'Unauthorized');
         }
 
+        // Pre-check (fast path — avoids acquiring lock for already-paid records)
         if ($feePayment->status === 'paid') {
             return redirect()->route('student.fee-payment')
                 ->with('error', 'This fee has already been paid in full.');
@@ -203,49 +220,66 @@ class FeePaymentController extends Controller
             'paid_amount'  => 'required_if:payment_type,partial|nullable|numeric|min:1|max:' . $remaining,
         ]);
 
-        if ($request->payment_type === 'full') {
+        $redirectResponse = null;
+
+        DB::transaction(function () use ($feePayment, $request, $totalAmount, &$redirectResponse) {
+            // Re-read under a row lock so concurrent requests cannot both see the
+            // same paid_amount and both add their portion on top of a stale value.
+            $locked = FeePayment::lockForUpdate()->find($feePayment->id);
+
+            if (!$locked || $locked->status === 'paid') {
+                $redirectResponse = redirect()->route('student.fee-payment')
+                    ->with('error', 'This fee has already been paid in full.');
+                return;
+            }
+
+            if ($request->payment_type === 'full') {
+                DB::table('fee_payments')
+                    ->where('id', $locked->id)
+                    ->update([
+                        'status'      => 'paid',
+                        'paid_amount' => $totalAmount,
+                        'paid_at'     => DB::raw('NOW()'),
+                    ]);
+
+                $redirectResponse = redirect()->route('student.dashboard')
+                    ->with('success', 'Full payment recorded! You can now register for courses.');
+                return;
+            }
+
+            // Accumulate partial payment on top of what has already been paid
+            $alreadyPaid  = (float) ($locked->paid_amount ?? 0);
+            $newPaidTotal = $alreadyPaid + (float) $request->paid_amount;
+
+            if ($newPaidTotal >= $totalAmount) {
+                DB::table('fee_payments')
+                    ->where('id', $locked->id)
+                    ->update([
+                        'status'      => 'paid',
+                        'paid_amount' => $totalAmount,
+                        'paid_at'     => DB::raw('NOW()'),
+                    ]);
+
+                $redirectResponse = redirect()->route('student.dashboard')
+                    ->with('success', 'Payment complete! Full amount of $' . number_format($totalAmount, 2) . ' received. You can now register for courses.');
+                return;
+            }
+
             DB::table('fee_payments')
-                ->where('id', $feePayment->id)
+                ->where('id', $locked->id)
                 ->update([
-                    'status'      => 'paid',
-                    'paid_amount' => $totalAmount,
+                    'status'      => 'partial',
+                    'paid_amount' => $newPaidTotal,
                     'paid_at'     => DB::raw('NOW()'),
                 ]);
 
-            return redirect()->route('student.dashboard')
-                ->with('success', 'Full payment recorded! You can now register for courses.');
-        }
+            $newRemaining     = $totalAmount - $newPaidTotal;
+            $redirectResponse = redirect()->route('student.fee-payment')
+                ->with('success', 'Partial payment of $' . number_format((float) $request->paid_amount, 2)
+                    . ' recorded. Remaining balance: $' . number_format($newRemaining, 2)
+                    . '. Full payment is required to register for courses.');
+        });
 
-        // Accumulate partial payment on top of what has already been paid
-        $alreadyPaid  = (float) ($feePayment->paid_amount ?? 0);
-        $newPaidTotal = $alreadyPaid + (float) $request->paid_amount;
-
-        if ($newPaidTotal >= $totalAmount) {
-            // Accumulated payments now cover the full amount
-            DB::table('fee_payments')
-                ->where('id', $feePayment->id)
-                ->update([
-                    'status'      => 'paid',
-                    'paid_amount' => $totalAmount,
-                    'paid_at'     => DB::raw('NOW()'),
-                ]);
-
-            return redirect()->route('student.dashboard')
-                ->with('success', 'Payment complete! Full amount of $' . number_format($totalAmount, 2) . ' received. You can now register for courses.');
-        }
-
-        DB::table('fee_payments')
-            ->where('id', $feePayment->id)
-            ->update([
-                'status'      => 'partial',
-                'paid_amount' => $newPaidTotal,
-                'paid_at'     => DB::raw('NOW()'),
-            ]);
-
-        $newRemaining = $totalAmount - $newPaidTotal;
-        return redirect()->route('student.fee-payment')
-            ->with('success', 'Partial payment of $' . number_format((float) $request->paid_amount, 2)
-                . ' recorded. Remaining balance: $' . number_format($newRemaining, 2)
-                . '. Full payment is required to register for courses.');
+        return $redirectResponse;
     }
 }
