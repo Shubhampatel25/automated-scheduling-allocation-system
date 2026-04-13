@@ -6,7 +6,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use App\Models\User;
 
 class AuthController extends Controller
 {
@@ -31,6 +33,18 @@ class AuthController extends Controller
             'password' => $request->password,
             'status' => 'active', // only active users
         ];
+
+        // ── TEMPORARY DEBUG — remove after Railway login is confirmed working ──
+        $debugUser = User::where('email', $request->email)->first();
+        Log::debug('[LOGIN DEBUG] attempt', [
+            'email'            => $request->email,
+            'user_found'       => $debugUser !== null,
+            'role'             => $debugUser?->role,
+            'status'           => $debugUser?->status,
+            'hash_length'      => $debugUser ? strlen($debugUser->password) : null,
+            'hash_check'       => $debugUser ? Hash::check($request->password, $debugUser->password) : false,
+        ]);
+        // ── END TEMPORARY DEBUG ───────────────────────────────────────────────
 
         // Attempt login
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
