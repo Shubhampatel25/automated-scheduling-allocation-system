@@ -26,5 +26,8 @@ php artisan storage:link  || true
 # ── Database migrations ───────────────────────────────────────────────────────
 php artisan migrate --force || true
 
+# ── Ensure default admin user exists (safe: uses firstOrCreate, no duplicates) ─
+php artisan db:seed --class=AdminUserSeeder --force || true
+
 # ── Start process supervisor (nginx + php-fpm) ────────────────────────────────
 exec /usr/bin/supervisord -c /var/www/html/docker/supervisord.conf
