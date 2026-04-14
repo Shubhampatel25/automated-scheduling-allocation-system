@@ -85,6 +85,7 @@
                     <th>Fee</th>
                     <th>Credit</th>
                     <th>Type</th>
+                    <th>Prerequisite</th>
                     <th>Status</th>
                     <th>Action</th>
                 </tr>
@@ -104,13 +105,27 @@
                         </span>
                     </td>
                     <td>
+                        @if($course->prerequisite_course_code)
+                            <span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:.76rem;font-weight:600;background:#ede9fe;color:#6366f1;">
+                                {{ $course->prerequisite_course_code }}
+                            </span>
+                            @if($course->prerequisite_mandatory)
+                                <span style="display:inline-block;padding:2px 7px;border-radius:12px;font-size:.72rem;font-weight:600;background:#fee2e2;color:#dc2626;margin-top:2px;">Required</span>
+                            @else
+                                <span style="display:inline-block;padding:2px 7px;border-radius:12px;font-size:.72rem;font-weight:600;background:#fef3c7;color:#92400e;margin-top:2px;">Optional</span>
+                            @endif
+                        @else
+                            <span style="color:#94a3b8;font-size:.82rem;">—</span>
+                        @endif
+                    </td>
+                    <td>
                         <span class="status {{ $course->status === 'active' ? 'status-active' : 'status-inactive' }}">
                             {{ ucfirst($course->status) }}
                         </span>
                     </td>
                     <td>
                         <div class="action-btns">
-                            <button class="btn-tbl-edit" onclick="editCourse({{ $course->id }}, '{{ $course->code }}', '{{ addslashes($course->name) }}', '{{ $course->department_id }}', '{{ $course->semester }}', '{{ $course->fee ?? 0 }}', '{{ $course->credits }}', '{{ $course->type }}', '{{ $course->status }}')">&#9998; Edit</button>
+                            <button class="btn-tbl-edit" onclick="editCourse({{ $course->id }}, '{{ $course->code }}', '{{ addslashes($course->name) }}', '{{ $course->department_id }}', '{{ $course->semester }}', '{{ $course->fee ?? 0 }}', '{{ $course->credits }}', '{{ $course->type }}', '{{ $course->status }}', '{{ $course->prerequisite_course_code ?? '' }}', {{ $course->prerequisite_mandatory ? 'true' : 'false' }})">&#9998; Edit</button>
                             <form method="POST" action="{{ route('admin.courses.destroy', $course->id) }}" style="display:contents" onsubmit="return confirm('Delete this course?')">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="btn-tbl-del">&#128465; Delete</button>
@@ -119,7 +134,7 @@
                     </td>
                 </tr>
                 @empty
-                <tr><td colspan="9" style="text-align:center;padding:24px;color:#9ca3af">No courses found.</td></tr>
+                <tr><td colspan="10" style="text-align:center;padding:24px;color:#9ca3af">No courses found.</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -196,6 +211,26 @@
                 </select>
             </div>
             <div class="field-group">
+                <label>Prerequisite Course <span style="color:#94a3b8;font-weight:400;font-size:.82rem;">(optional)</span></label>
+                <select name="prerequisite_course_code" id="fPrereq">
+                    <option value="">— No Prerequisite —</option>
+                    @foreach($allCourseCodes as $pc)
+                        <option value="{{ $pc->code }}" {{ old('prerequisite_course_code') === $pc->code ? 'selected' : '' }}>
+                            {{ $pc->code }} – {{ $pc->name }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="field-group" id="prereqMandatoryRow" style="display:none">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                    <input type="checkbox" name="prerequisite_mandatory" id="fPrereqMandatory" value="1"
+                           {{ old('prerequisite_mandatory') ? 'checked' : '' }}
+                           style="width:16px;height:16px;accent-color:#6366f1;">
+                    Prerequisite is <strong>mandatory</strong>
+                    <span style="color:#64748b;font-size:.8rem;font-weight:400;">(student must pass it before enrolling)</span>
+                </label>
+            </div>
+            <div class="field-group">
                 <label>Status</label>
                 <select name="status" id="fStatus" required>
                     <option value="active"   {{ old('status', 'active') === 'active'   ? 'selected' : '' }}>Active</option>
@@ -212,10 +247,16 @@
 <script>
 const storeUrl = "{{ route('admin.courses.store') }}";
 
+function togglePrereqMandatory() {
+    const val = document.getElementById('fPrereq').value;
+    document.getElementById('prereqMandatoryRow').style.display = val ? '' : 'none';
+}
+
 function openModal() {
     document.getElementById('courseForm').action = storeUrl;
     document.getElementById('formMethod').value  = 'POST';
     document.getElementById('courseForm').reset();
+    document.getElementById('prereqMandatoryRow').style.display = 'none';
     document.getElementById('modalTitle').textContent = 'Add New Course';
     document.getElementById('submitBtn').textContent  = 'Add Course';
     document.getElementById('modalBackdrop').classList.add('show');
@@ -225,21 +266,28 @@ function closeModal() {
     document.getElementById('modalBackdrop').classList.remove('show');
 }
 
-function editCourse(id, code, name, deptId, semester, fee, credits, type, status) {
-    document.getElementById('courseForm').action = `/admin/courses/${id}`;
-    document.getElementById('formMethod').value  = 'PUT';
-    document.getElementById('fCode').value       = code;
-    document.getElementById('fName').value       = name;
-    document.getElementById('fDept').value       = deptId;
-    document.getElementById('fSemester').value   = semester || '';
-    document.getElementById('fFee').value        = fee || 0;
-    document.getElementById('fCredits').value    = credits;
-    document.getElementById('fType').value       = type;
-    document.getElementById('fStatus').value     = status;
-    document.getElementById('modalTitle').textContent = 'Edit Course';
-    document.getElementById('submitBtn').textContent  = 'Update Course';
+function editCourse(id, code, name, deptId, semester, fee, credits, type, status, prereqCode, prereqMandatory) {
+    document.getElementById('courseForm').action        = `/admin/courses/${id}`;
+    document.getElementById('formMethod').value         = 'PUT';
+    document.getElementById('fCode').value              = code;
+    document.getElementById('fName').value              = name;
+    document.getElementById('fDept').value              = deptId;
+    document.getElementById('fSemester').value          = semester || '';
+    document.getElementById('fFee').value               = fee || 0;
+    document.getElementById('fCredits').value           = credits;
+    document.getElementById('fType').value              = type;
+    document.getElementById('fStatus').value            = status;
+    document.getElementById('fPrereq').value            = prereqCode || '';
+    document.getElementById('fPrereqMandatory').checked = prereqMandatory === true || prereqMandatory === 'true';
+    document.getElementById('prereqMandatoryRow').style.display = prereqCode ? '' : 'none';
+    document.getElementById('modalTitle').textContent   = 'Edit Course';
+    document.getElementById('submitBtn').textContent    = 'Update Course';
     document.getElementById('modalBackdrop').classList.add('show');
 }
+
+document.addEventListener('DOMContentLoaded', function () {
+    document.getElementById('fPrereq').addEventListener('change', togglePrereqMandatory);
+});
 
 function filterTable() { applyFilters(); }
 function applyFilters() {
@@ -280,7 +328,7 @@ document.addEventListener('DOMContentLoaded', () => {
         $editingCourse = old('code') ? App\Models\Course::where('code', old('code'))->first() : null;
     @endphp
     @if($editingCourse)
-        editCourse({{ $editingCourse->id }}, '{{ $editingCourse->code }}', '{{ addslashes($editingCourse->name) }}', '{{ $editingCourse->department_id }}', '{{ $editingCourse->semester }}', '{{ $editingCourse->credits }}', '{{ $editingCourse->type }}', '{{ $editingCourse->status }}');
+        editCourse({{ $editingCourse->id }}, '{{ $editingCourse->code }}', '{{ addslashes($editingCourse->name) }}', '{{ $editingCourse->department_id }}', '{{ $editingCourse->semester }}', '{{ $editingCourse->fee ?? 0 }}', '{{ $editingCourse->credits }}', '{{ $editingCourse->type }}', '{{ $editingCourse->status }}', '{{ $editingCourse->prerequisite_course_code ?? '' }}', {{ $editingCourse->prerequisite_mandatory ? 'true' : 'false' }});
     @else
         document.getElementById('modalBackdrop').classList.add('show');
     @endif

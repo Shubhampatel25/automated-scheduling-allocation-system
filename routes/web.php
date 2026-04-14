@@ -157,7 +157,8 @@ Route::middleware(['auth', 'role:hod'])->prefix('hod')->group(function () {
     Route::get('/courses-by-department', [HodPagesController::class, 'coursesByDepartment'])->name('hod.courses-by-department');
     Route::get('/departments-by-semester', [HodPagesController::class, 'departmentsBySemester'])->name('hod.departments-by-semester');
     Route::get('/view-timetable', [HodPagesController::class, 'viewTimetable'])->name('hod.view-timetable');
-    Route::get('/faculty-workload', [HodPagesController::class, 'facultyWorkload'])->name('hod.faculty-workload');
+    Route::get('/faculty-workload',       [HodPagesController::class, 'facultyWorkload'])->name('hod.faculty-workload');
+    Route::get('/teacher-availability',   [HodPagesController::class, 'teacherAvailability'])->name('hod.teacher-availability');
     Route::get('/approve-schedule',     [HodPagesController::class, 'approveSchedule'])->name('hod.approve-schedule');
     Route::get('/department-timetable', [HodPagesController::class, 'departmentTimetable'])->name('hod.department-timetable');
     Route::get('/department-report',    [HodPagesController::class, 'departmentReport'])->name('hod.department-report');
