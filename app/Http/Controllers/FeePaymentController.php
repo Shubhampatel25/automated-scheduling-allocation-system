@@ -162,20 +162,31 @@ class FeePaymentController extends Controller
             'status'     => 'required|in:paid,pending,overdue,partial',
         ]);
 
-        $paidAt = null;
+        $paidAt     = null;
+        $paidAmount = $feePayment->paid_amount ?? 0;
+
         if ($request->status === 'paid') {
-            $paidAt = $feePayment->paid_at ? $feePayment->paid_at : DB::raw('NOW()');
+            // Mark as fully paid — set paid_amount to the full amount so the
+            // student dashboard shows the correct receipt and progress bar.
+            $paidAmount = $request->amount;
+            $paidAt     = $feePayment->paid_at ?? DB::raw('NOW()');
+        } elseif (in_array($request->status, ['pending', 'overdue'])) {
+            // Reset to unpaid state
+            $paidAmount = 0;
+            $paidAt     = null;
         }
+        // 'partial' — keep existing paid_amount as-is (admin cannot set partial amount here)
 
         DB::table('fee_payments')
             ->where('id', $feePayment->id)
             ->update([
-                'student_id' => $request->student_id,
-                'semester'   => $request->semester,
-                'year'       => $request->year,
-                'amount'     => $request->amount,
-                'status'     => $request->status,
-                'paid_at'    => $paidAt,
+                'student_id'  => $request->student_id,
+                'semester'    => $request->semester,
+                'year'        => $request->year,
+                'amount'      => $request->amount,
+                'status'      => $request->status,
+                'paid_amount' => $paidAmount,
+                'paid_at'     => $paidAt,
             ]);
 
         return redirect()->route('admin.fee-payments.index')
