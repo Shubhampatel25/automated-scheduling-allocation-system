@@ -73,7 +73,16 @@ class PasswordOtpController extends Controller
             'last_sent_at' => now(),
         ]);
 
-        Mail::to($email)->send(new OtpMail($plainOtp, self::OTP_TTL_MINUTES));
+        try {
+            Mail::to($email)->send(new OtpMail($plainOtp, self::OTP_TTL_MINUTES));
+        } catch (\Throwable $e) {
+            // Clean up the OTP record so the user can retry cleanly
+            PasswordResetOtp::where('email', $email)->delete();
+
+            return back()
+                ->withInput(['email' => $email])
+                ->withErrors(['email' => 'We could not send the OTP email right now. Please try again later.']);
+        }
 
         return redirect()->route('password.otp.verify.form')
             ->with('otp_email', $email)

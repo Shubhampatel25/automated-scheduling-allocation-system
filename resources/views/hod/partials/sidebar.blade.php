@@ -37,6 +37,10 @@
     <span class="icon">&#128203;</span> Approve Schedule
 </a>
 
+<a href="{{ route('hod.teacher-availability') }}" class="nav-link {{ request()->routeIs('hod.teacher-availability') ? 'active' : '' }}">
+    <span class="icon">&#128197;</span> Teacher Availability
+</a>
+
 <div class="nav-section-title">Reports</div>
 <a href="{{ route('hod.faculty-workload') }}" class="nav-link {{ request()->routeIs('hod.faculty-workload') ? 'active' : '' }}">
     <span class="icon">&#128202;</span> Faculty Workload

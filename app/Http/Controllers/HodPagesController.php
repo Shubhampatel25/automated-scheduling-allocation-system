@@ -9,6 +9,7 @@ use App\Models\CourseSection;
 use App\Models\Department;
 use App\Models\Hod;
 use App\Models\Teacher;
+use App\Models\TeacherAvailability;
 use App\Models\Timetable;
 use App\Models\TimetableSlot;
 use Illuminate\Http\Request;
@@ -395,7 +396,7 @@ class HodPagesController extends Controller
 
         return view('hod.department_timetable', compact(
             'departments', 'activeTimetables', 'selectedTimetable',
-            'timetableSlots', 'department', 'selectedDeptId'
+            'timetableSlots', 'department', 'selectedDeptId', 'myDepartmentId'
         ));
     }
 
@@ -458,6 +459,41 @@ class HodPagesController extends Controller
             'totalTeachers', 'activeTeachers', 'assignedTeachers', 'teachers',
             'timetables', 'activeTimetable', 'totalTimetables', 'totalConflicts',
             'activeSlots', 'slotsByDay', 'totalHours'
+        ));
+    }
+
+    // ─── 10. Teacher Availability page ──────────────────────────────────────
+
+    public function teacherAvailability()
+    {
+        $departmentId = $this->getDepartmentId();
+
+        $teachers = $departmentId
+            ? Teacher::where('department_id', $departmentId)
+                ->where('status', 'active')
+                ->orderBy('name')
+                ->get()
+            : collect();
+
+        $teacherIds = $teachers->pluck('id');
+
+        // All declared availability windows for these teachers
+        $availabilities = $teacherIds->isNotEmpty()
+            ? TeacherAvailability::whereIn('teacher_id', $teacherIds)
+                ->get()
+                ->groupBy('teacher_id')
+            : collect();
+
+        // Active scheduled slots (booked time) for these teachers
+        $bookedSlots = $teacherIds->isNotEmpty()
+            ? TimetableSlot::whereIn('teacher_id', $teacherIds)
+                ->whereHas('timetable', fn($q) => $q->where('status', 'active'))
+                ->get()
+                ->groupBy('teacher_id')
+            : collect();
+
+        return view('hod.teacher_availability', compact(
+            'teachers', 'availabilities', 'bookedSlots'
         ));
     }
 

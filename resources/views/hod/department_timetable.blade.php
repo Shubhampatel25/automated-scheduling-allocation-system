@@ -90,11 +90,23 @@ table.timetable td.time-label { background:#f8fafc; font-weight:600; color:#4755
             @foreach($departments as $dept)
                 <option value="{{ $dept->id }}"
                         {{ $dept->id == $selectedDeptId ? 'selected' : '' }}>
-                    {{ $dept->name }}
+                    {{ $dept->name }}{{ $dept->id == ($myDepartmentId ?? null) ? ' (My Dept)' : '' }}
                 </option>
             @endforeach
         </select>
     </div>
+
+    {{-- ── Read-only notice when viewing another department ──────────── --}}
+    @if(isset($myDepartmentId) && $selectedDeptId && $selectedDeptId != $myDepartmentId)
+        <div style="display:flex;align-items:center;gap:10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 18px;margin-bottom:18px;font-size:.875rem;color:#1d4ed8;">
+            <span style="font-size:1.1rem;">&#128065;</span>
+            <span>
+                <strong>View Only</strong> &mdash; You are viewing the timetable for
+                <strong>{{ $department->name ?? 'another department' }}</strong>.
+                You can only view &mdash; editing is restricted to your own department.
+            </span>
+        </div>
+    @endif
 
     @if($activeTimetables->isEmpty())
         {{-- Selected dept exists but has no active timetable --}}
