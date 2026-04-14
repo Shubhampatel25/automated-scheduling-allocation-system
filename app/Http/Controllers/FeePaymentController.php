@@ -209,8 +209,21 @@ class FeePaymentController extends Controller
                 'paid_at'     => $paidAt,
             ]);
 
+        // Unenroll the student from all enrolled courses when fee is marked unpaid
+        $unenrolled = 0;
+        if (in_array($request->status, ['pending', 'overdue'])) {
+            $unenrolled = StudentCourseRegistration::where('student_id', $request->student_id)
+                ->where('status', 'enrolled')
+                ->update(['status' => 'dropped']);
+        }
+
+        $message = 'Fee payment record updated successfully.';
+        if ($unenrolled > 0) {
+            $message .= " Student has been unenrolled from {$unenrolled} course(s) due to unpaid fee.";
+        }
+
         return redirect()->route('admin.fee-payments.index')
-            ->with('success', 'Fee payment record updated successfully.');
+            ->with('success', $message);
     }
 
     public function destroy(FeePayment $feePayment)
