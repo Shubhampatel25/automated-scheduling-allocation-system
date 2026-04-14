@@ -279,6 +279,18 @@
             $isPaid    = $feeRecord->status === 'paid';
         @endphp
 
+        {{-- Zero-amount guard: admin hasn't set the fee yet --}}
+        @if($totalAmt == 0)
+        <div class="fee-alert warning">
+            <span class="fee-alert-icon">&#9888;</span>
+            <div>
+                <strong>Fee amount not set.</strong> &mdash;
+                The administration has not yet configured your Semester {{ $semester }} tuition fee.
+                Please visit the Student Finance Office or email <strong>finance@college.edu</strong> for assistance.
+            </div>
+        </div>
+        @else
+
         {{-- Summary stat cards --}}
         <div class="fee-summary-grid">
             <div class="fee-sum-card">
@@ -484,6 +496,8 @@
             </div>
         </div>
         @endif
+
+        @endif {{-- end $totalAmt == 0 guard --}}
 
     @endif
     </div>

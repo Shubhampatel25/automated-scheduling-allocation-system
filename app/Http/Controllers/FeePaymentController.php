@@ -16,6 +16,7 @@ class FeePaymentController extends Controller
     {
         $search       = $request->get('search');
         $statusFilter = $request->get('status');
+        $typeFilter   = $request->get('type');   // 'regular' | 'supplemental' | ''
         $currentYear  = now()->year;
 
         // All students with their current-semester fee payment (if any)
@@ -31,7 +32,7 @@ class FeePaymentController extends Controller
             ->withQueryString();
 
         // Existing payment records for the records tab
-        $feePayments = FeePayment::with(['student.department'])
+        $feePayments = FeePayment::with(['student.department', 'course'])
             ->when($search, function ($q) use ($search) {
                 $q->whereHas('student', function ($sq) use ($search) {
                     $sq->where('name', 'like', "%{$search}%")
@@ -39,15 +40,34 @@ class FeePaymentController extends Controller
                 });
             })
             ->when($statusFilter, fn($q) => $q->where('status', $statusFilter))
+            ->when($typeFilter,   fn($q) => $q->where('type', $typeFilter))
             ->latest('created_at')
             ->paginate(15)
             ->withQueryString();
+
+        // Summary totals for the filtered records set (unpaginated, same filters)
+        $summaryQuery = FeePayment::query()
+            ->when($search, function ($q) use ($search) {
+                $q->whereHas('student', fn($sq) => $sq
+                    ->where('name', 'like', "%{$search}%")
+                    ->orWhere('roll_no', 'like', "%{$search}%"));
+            })
+            ->when($statusFilter, fn($q) => $q->where('status', $statusFilter))
+            ->when($typeFilter,   fn($q) => $q->where('type', $typeFilter));
+
+        $summaryTotals = (clone $summaryQuery)->selectRaw(
+            'COUNT(*) as total_records,
+             SUM(amount) as total_amount,
+             SUM(paid_amount) as total_paid,
+             SUM(CASE WHEN status != "paid" THEN amount - COALESCE(paid_amount,0) ELSE 0 END) as total_outstanding'
+        )->first();
 
         $students    = Student::with('department')->orderBy('name')->get();
         $departments = Department::orderBy('name')->get();
 
         return view('admin.fee-payments.index', compact(
-            'feePayments', 'allStudents', 'students', 'departments', 'currentYear'
+            'feePayments', 'allStudents', 'students', 'departments',
+            'currentYear', 'summaryTotals', 'typeFilter', 'statusFilter'
         ));
     }
 
